@@ -111,11 +111,6 @@ jobs:
             exit 1
           fi
 
-      - name: Run Nuxt prepare
-        run: |
-          echo "Running nuxt prepare after service account is available"
-          pnpm nuxt prepare || pnpm exec nuxt prepare
-
       - name: Check package.json for Font Awesome dependencies
         id: check_fa
         run: |
@@ -157,6 +152,12 @@ jobs:
             pnpm add vue-recaptcha-v3
             echo "Added vue-recaptcha-v3 to dependencies"
           fi
+
+      # Run nuxt prepare AFTER dependencies are installed
+      - name: Run Nuxt prepare
+        run: |
+          echo "Running nuxt prepare after dependencies are installed and service account is available"
+          pnpm nuxt prepare || pnpm exec nuxt prepare
 
       - name: Verify Firebase configuration
         run: |
@@ -237,7 +238,9 @@ jobs:
         run: |
           export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
 
-          # Install Firebase CLI globally with specific version for Node.js 18 compatibility
+          # IMPORTANT: Firebase Tools v14.0.0+ dropped support for Node.js 18.
+          # We're using v13.35.0 as the last compatible version until we can upgrade to Node 20.
+          # The upgrade is currently blocked by compatibility issues between better-sqlite3 and nuxt/content.
           npm install -g firebase-tools@13.35.0
 
           # Using the service account credentials directly instead of token

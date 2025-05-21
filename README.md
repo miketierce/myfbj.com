@@ -428,8 +428,13 @@ To deploy to Firebase from your local development environment:
 
 1. Make sure you have the Firebase CLI installed:
    ```bash
-   npm install -g firebase-tools
+   npm install -g firebase-tools@13.35.0
    ```
+
+   > **Important Note:** This project currently requires Firebase Tools v13.35.0 because:
+   > - Firebase Tools v14.0.0+ (released March 27, 2025) dropped support for Node.js 18
+   > - This project is pinned to Node.js 18 due to compatibility issues between better-sqlite3 and nuxt/content on Node 20
+   > - We'll upgrade to Node.js 20+ and Firebase Tools v14+ once these compatibility issues are resolved
 
 2. Log in to Firebase:
    ```bash
@@ -543,6 +548,29 @@ For a multi-environment setup with development and production projects:
 1. Create two Firebase projects (one for development, one for production)
 2. Add both project IDs to your GitHub secrets
 3. Make sure each service account has access to its respective project
+
+## Known Limitations and Future Upgrades
+
+### Node.js 18 and Firebase Tools Compatibility
+
+This project currently uses:
+- Node.js 18 runtime
+- Firebase Tools v13.35.0 (last version supporting Node.js 18)
+
+**Why we're using an older version:**
+1. Firebase Tools v14.0.0+ dropped support for Node.js 18 on March 27, 2025
+2. The project is pinned to Node.js 18 due to compatibility issues between better-sqlite3 and nuxt/content on Node.js 20
+3. This is a temporary solution until the compatibility issues are resolved
+
+**Planned upgrade path:**
+- Monitor nuxt/content for updates that resolve better-sqlite3 compatibility with Node.js 20
+- Once resolved, upgrade to:
+  - Node.js 20+
+  - Firebase Tools v14+
+  - Update Firebase functions runtime in firebase.json
+
+**Reference:**
+- [Firebase Tools v14.0.0 Release Notes](https://github.com/firebase/firebase-tools/releases/tag/v14.0.0)
 
 ## License
 
