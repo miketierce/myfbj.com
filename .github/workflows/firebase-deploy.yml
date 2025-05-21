@@ -205,14 +205,39 @@ jobs:
           echo "Deploying to Firebase project: $project_id"
           firebase use $project_id --non-interactive
 
+          # Create a package.json in the .output/server directory with firebase-functions dependency
+          if [ -d ".output/server" ]; then
+            echo "Preparing .output/server for Firebase deployment..."
+
+            # Create package.json in .output/server if it doesn't exist or update it
+            if [ ! -f ".output/server/package.json" ]; then
+              echo '{"dependencies": {"firebase-functions": "^5.1.1", "firebase-admin": "^12.7.0"}}' > .output/server/package.json
+              echo "Created package.json in .output/server with firebase-functions dependency"
+            else
+              # Update existing package.json to ensure it has firebase-functions
+              node -e "
+                const fs = require('fs');
+                const path = '.output/server/package.json';
+                const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+                pkg.dependencies = pkg.dependencies || {};
+                pkg.dependencies['firebase-functions'] = '^5.1.1';
+                pkg.dependencies['firebase-admin'] = '^12.7.0';
+                fs.writeFileSync(path, JSON.stringify(pkg, null, 2));
+              "
+              echo "Updated package.json in .output/server with firebase-functions dependency"
+            fi
+          else
+            echo "Warning: .output/server directory not found. Nuxt build may have failed."
+          fi
+
           # Display function configuration being deployed
           echo "Function configuration:"
           echo "  Min instances: $firebase_min_instances"
           echo "  Max instances: $firebase_max_instances"
-          echo "  Memory: $firebase_memory MB"
+          echo "  Memory: $firebase_memory"
           echo "  CPU: $firebase_cpu"
           echo "  Timeout: $firebase_timeout s"
           echo "  Concurrency: $firebase_concurrency"
 
           # Deploy with non-interactive flag to prevent prompts
-          firebase deploy --only functions:server,hosting --project $project_id --non-interactive --force
+          firebase deploy --only functions:server,hosting,firestore --project $project_id --non-interactive --force
