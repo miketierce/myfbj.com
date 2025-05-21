@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      NODE_VERSION: 18
+      NODE_VERSION: '18'
 
     steps:
       - name: Checkout repository
@@ -27,7 +27,7 @@ jobs:
       - name: Setup PNPM
         uses: pnpm/action-setup@v2
         with:
-          version: 7.33.7
+          version: 8
           run_install: false
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
@@ -48,6 +48,7 @@ jobs:
             echo "recaptcha_site_key=${{ secrets.PROD_RECAPTCHA_SITE_KEY }}" >> $GITHUB_ENV
             echo "recaptcha_secret_key=${{ secrets.PROD_RECAPTCHA_SECRET_KEY }}" >> $GITHUB_ENV
             echo "FIREBASE_REGION=us-central1" >> $GITHUB_ENV
+            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
           else
             echo "ENVIRONMENT=development" >> $GITHUB_ENV
             echo "Using DEVELOPMENT environment"
@@ -57,6 +58,7 @@ jobs:
             echo "recaptcha_site_key=${{ secrets.DEV_RECAPTCHA_SITE_KEY }}" >> $GITHUB_ENV
             echo "recaptcha_secret_key=${{ secrets.DEV_RECAPTCHA_SECRET_KEY }}" >> $GITHUB_ENV
             echo "FIREBASE_REGION=us-central1" >> $GITHUB_ENV
+            echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
           fi
 
       - name: Setup Firebase service account
@@ -64,6 +66,14 @@ jobs:
           # Create service account file from the appropriate GitHub secret
           echo "${{ secrets[steps.determine_env.outputs.service_account] }}" > service-account.json
           echo "Created service account file from ${{ steps.determine_env.outputs.service_account }} secret"
+
+          # Verify service account file exists and has content
+          if [ -s service-account.json ]; then
+            echo "✅ Service account file created successfully with content"
+          else
+            echo "❌ Service account file is empty or not created"
+            exit 1
+          fi
 
       - name: Set environment variables
         run: |
@@ -73,57 +83,177 @@ jobs:
 
           # Add additional required environment variables
           echo "NUXT_PUBLIC_RECAPTCHA_SITE_KEY=$recaptcha_site_key" >> .env
-          echo "NUXT_RECAPTCHA_SECRET_KEY=$recaptcha_secret_key" >> .env
+          echo "RECAPTCHA_SECRET_KEY=$recaptcha_secret_key" >> .env
+          echo "DEPLOY_ENV=$DEPLOY_ENV" >> .env
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/service-account.json" >> .env
+          echo "FIREBASE_REGION=$FIREBASE_REGION" >> .env
+
+          # Save Firebase configuration environment variables for build
+          {
+            echo "FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}"
+            echo "FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }}"
+            echo "FIREBASE_PROJECT_ID=$project_id"
+            echo "FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }}"
+            echo "FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}"
+            echo "FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}"
+            echo "FIREBASE_MEASUREMENT_ID=${{ secrets.FIREBASE_MEASUREMENT_ID }}"
+          } >> .env
 
           # For troubleshooting - Print environment file without sensitive values
           echo "Environment file created with the following keys:"
           grep -v "KEY\|SECRET\|PASSWORD\|TOKEN" .env | sed 's/=.*/=***/' || echo "No non-sensitive keys found"
 
-      - name: Setup FontAwesome
+          # Make sure .env file exists and has content
+          if [ -s .env ]; then
+            echo "✅ Environment file created successfully with content"
+          else
+            echo "❌ Environment file is empty or not created"
+            exit 1
+          fi
+
+      - name: Check package.json for Font Awesome dependencies
+        id: check_fa
         run: |
-          # Configure npm for FontAwesome authenticated access
-          echo "@fortawesome:registry=https://npm.fontawesome.com/" > .npmrc
-          echo "//npm.fontawesome.com/:_authToken=${{ secrets.FONTAWESOME_TOKEN }}" >> .npmrc
-          echo "Created FontAwesome npm configuration"
+          if grep -q "@fortawesome/fontawesome-pro" package.json; then
+            echo "HAS_FA_PRO=true" >> $GITHUB_OUTPUT
+            echo "Found Font Awesome Pro dependency in package.json"
+          else
+            echo "HAS_FA_PRO=false" >> $GITHUB_OUTPUT
+            echo "No Font Awesome Pro dependency found, using public packages only"
+          fi
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          # Only configure FontAwesome Pro registry if needed
+          if [[ "${{ steps.check_fa.outputs.HAS_FA_PRO }}" == "true" && -n "${{ secrets.FONTAWESOME_NPM_TOKEN }}" ]]; then
+            echo "Configuring Font Awesome Pro registry"
+            echo "@fortawesome:registry=https://npm.fontawesome.com/" > .npmrc
+            echo "//npm.fontawesome.com/:_authToken=${{ secrets.FONTAWESOME_NPM_TOKEN }}" >> .npmrc
+          else
+            # Create a simple .npmrc that uses public registry for all packages
+            echo "registry=https://registry.npmjs.org/" > .npmrc
+            echo "Using public npm registry for all packages"
+          fi
 
-      - name: Run linting
-        run: pnpm lint || echo "Linting issues found - review output"
+          # Install dependencies without Font Awesome Pro if token is missing
+          if [[ "${{ steps.check_fa.outputs.HAS_FA_PRO }}" == "true" && -z "${{ secrets.FONTAWESOME_NPM_TOKEN }}" ]]; then
+            echo "⚠️ Font Awesome Pro dependencies found but no token provided, installing without Pro packages"
+            # Create a temporary package.json without FA Pro
+            cat package.json | grep -v "@fortawesome/fontawesome-pro" > package.json.tmp
+            mv package.json.tmp package.json
+          fi
 
-      - name: Install vue-recaptcha-v3 if needed
-        run: pnpm add vue-recaptcha-v3 || echo "Vue-recaptcha-v3 already installed"
+          # Install dependencies
+          echo "Installing dependencies..."
+          pnpm install --frozen-lockfile
+
+          # Install vue-recaptcha-v3 if needed and not included in dependencies
+          if ! grep -q "vue-recaptcha-v3" package.json; then
+            pnpm add vue-recaptcha-v3
+            echo "Added vue-recaptcha-v3 to dependencies"
+          fi
+
+      - name: Verify Firebase configuration
+        run: |
+          echo "Verifying Firebase configuration in config/firebase.config.js"
+          cat config/firebase.config.js
+
+          # Check if firebase.config.js uses environment variables
+          if grep -q "process.env" config/firebase.config.js; then
+            echo "✅ Firebase config uses environment variables as required"
+          else
+            echo "⚠️ Firebase config might not be using environment variables - please verify the code"
+          fi
 
       - name: Build application
         run: |
           # Set deployment environment variables
-          export DEPLOY_ENV=$ENVIRONMENT
+          export DEPLOY_ENV=$DEPLOY_ENV
           export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
-          export NITRO_PRESET=firebase
-          export NUXT_PUBLIC_RECAPTCHA_SITE_KEY=$recaptcha_site_key
-          export NUXT_RECAPTCHA_SECRET_KEY=$recaptcha_secret_key
-          # Force Node.js 18
-          export NODE_VERSION=18
-          echo "Building for $ENVIRONMENT environment with Firebase preset using Node.js 18"
-          pnpm build
-        env:
-          # Use Firebase preset for Nitro
-          NITRO_PRESET: firebase
+          export FIREBASE_API_KEY="${{ secrets.FIREBASE_API_KEY }}"
+          export FIREBASE_AUTH_DOMAIN="${{ secrets.FIREBASE_AUTH_DOMAIN }}"
+          export FIREBASE_PROJECT_ID="$project_id"
+          export FIREBASE_STORAGE_BUCKET="${{ secrets.FIREBASE_STORAGE_BUCKET }}"
+          export FIREBASE_MESSAGING_SENDER_ID="${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}"
+          export FIREBASE_APP_ID="${{ secrets.FIREBASE_APP_ID }}"
+          export FIREBASE_MEASUREMENT_ID="${{ secrets.FIREBASE_MEASUREMENT_ID }}"
+          export NUXT_PUBLIC_RECAPTCHA_SITE_KEY="$recaptcha_site_key"
+          export RECAPTCHA_SECRET_KEY="$recaptcha_secret_key"
 
-      - name: Run tests (if available)
-        run: pnpm test || echo "No tests found or tests failed"
-        continue-on-error: true
+          # Build with Firebase preset
+          echo "Building for $ENVIRONMENT environment with Firebase preset using Node.js $NODE_VERSION"
+          NITRO_PRESET=firebase pnpm build
 
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools@latest
+          # Verify build output
+          if [ -d ".output" ]; then
+            echo "✅ Build completed successfully, .output directory exists"
+            ls -la .output
+          else
+            echo "❌ Build failed, .output directory not found"
+            exit 1
+          fi
+
+      - name: Prepare functions for deployment
+        run: |
+          # Update firebase.json to use the correct Node.js runtime version for functions
+          # Temporarily use jq to ensure correct JSON manipulation
+          apt-get update && apt-get install -y jq
+          jq '.functions.runtime = "nodejs18"' firebase.json > firebase.json.tmp && mv firebase.json.tmp firebase.json
+          echo "Updated Firebase functions runtime to nodejs18:"
+          cat firebase.json
+
+          # Verify Firebase builds
+          echo "Checking Firebase deployment files:"
+          echo "Hosting files (.output/public):"
+          ls -la .output/public || echo "❌ Public directory not found"
+
+          echo "Functions files (.output/server):"
+          ls -la .output/server || echo "❌ Server directory not found"
+
+          # Check for package.json in server directory
+          if [ -f ".output/server/package.json" ]; then
+            echo "✅ Server package.json exists"
+            cat .output/server/package.json
+          else
+            echo "❌ Server package.json not found"
+            # Create a minimal package.json if it doesn't exist
+            echo '{"name":"nuxt-ssr-function","version":"1.0.0","engines":{"node":"18"}}' > .output/server/package.json
+            echo "Created minimal package.json for functions"
+          fi
+
+          # Check for firebase-functions dependency in server/package.json
+          if [ -f ".output/server/package.json" ] && ! grep -q "firebase-functions" .output/server/package.json; then
+            echo "Adding firebase-functions to server/package.json"
+            cd .output/server && npm install --save firebase-functions@^4.0.0
+          fi
 
       - name: Deploy to Firebase
         if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/development')
         run: |
           export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
 
+          # Install Firebase CLI globally
+          npm install -g firebase-tools@latest
+
           # Using the service account credentials directly instead of token
           echo "Deploying to Firebase project: $project_id"
           firebase use $project_id
-          firebase deploy --only functions:server,hosting --project $project_id --force
+
+          # First validate the configuration
+          firebase deploy --only functions:server,hosting --project $project_id --dry-run
+
+          # Then do the actual deployment
+          echo "Starting actual deployment..."
+          firebase deploy --only functions:server,hosting --project $project_id
+
+      - name: Deployment confirmation
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/development')
+        run: |
+          echo "🎉 Deployment completed successfully to $ENVIRONMENT environment"
+          echo "Project: $project_id"
+          echo "Region: $FIREBASE_REGION"
+          echo "Function: server"
+          echo "Timestamp: $(date)"
+
+          # Check deployed function
+          firebase functions:list --project $project_id

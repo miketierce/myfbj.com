@@ -20,7 +20,7 @@
   },
   "functions": {
     "source": ".output/server",
-    "runtime": "nodejs20"
+    "runtime": "nodejs18"
   },
   "storage": {
     "rules": "storage.rules"
