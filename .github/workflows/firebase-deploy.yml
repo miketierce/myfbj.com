@@ -114,7 +114,7 @@ jobs:
       - name: Run Nuxt prepare
         run: |
           echo "Running nuxt prepare after service account is available"
-          pnpm nuxt prepare
+          pnpm nuxt prepare || pnpm exec nuxt prepare
 
       - name: Check package.json for Font Awesome dependencies
         id: check_fa
