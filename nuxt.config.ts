@@ -14,25 +14,32 @@ const serviceAccountPath = resolve(__dirname, './service-account.json')
 // Read service account directly to provide as object
 let serviceAccountCredentials = null
 let hasServiceAccount = false
-try {
-  if (existsSync(serviceAccountPath)) {
-    // Read and parse the service account file
-    const content = readFileSync(serviceAccountPath, 'utf8')
-    serviceAccountCredentials = JSON.parse(content)
-    hasServiceAccount = true
-    console.log(
-      'Service account file found and loaded from:',
-      serviceAccountPath
-    )
 
-    // Set the environment variable directly since we found the file
-    // This is what nuxt-vuefire looks for according to the docs
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = serviceAccountPath
-  } else {
+// Only try to read the service account file if we're not in a build/CI environment
+const isCI = process.env.CI === 'true'
+try {
+  if (!isCI && existsSync(serviceAccountPath)) {
+    try {
+      // Read and parse the service account file
+      const content = readFileSync(serviceAccountPath, 'utf8')
+      serviceAccountCredentials = JSON.parse(content)
+      hasServiceAccount = true
+      console.log(
+        'Service account file found and loaded from:',
+        serviceAccountPath
+      )
+
+      // Set the environment variable directly since we found the file
+      // This is what nuxt-vuefire looks for according to the docs
+      process.env.GOOGLE_APPLICATION_CREDENTIALS = serviceAccountPath
+    } catch (parseError: any) {
+      console.warn('Invalid JSON in service account file:', parseError.message)
+    }
+  } else if (!isCI) {
     console.log('No service account file found at:', serviceAccountPath)
   }
-} catch (error) {
-  console.warn('Error reading service account file:', error.message)
+} catch (error: any) {
+  console.warn('Error accessing service account file:', error.message)
 }
 
 export default defineNuxtConfig({

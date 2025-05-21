@@ -111,6 +111,11 @@ jobs:
             exit 1
           fi
 
+      - name: Run Nuxt prepare
+        run: |
+          echo "Running nuxt prepare after service account is available"
+          pnpm nuxt prepare
+
       - name: Check package.json for Font Awesome dependencies
         id: check_fa
         run: |
@@ -232,8 +237,8 @@ jobs:
         run: |
           export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
 
-          # Install Firebase CLI globally
-          npm install -g firebase-tools@latest
+          # Install Firebase CLI globally with specific version for Node.js 18 compatibility
+          npm install -g firebase-tools@13.35.0
 
           # Using the service account credentials directly instead of token
           echo "Deploying to Firebase project: $project_id"
