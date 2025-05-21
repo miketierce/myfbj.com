@@ -1,0 +1,20 @@
+node_modules
+service-account.json
+.nuxt
+# Local env files
+.env
+# .gitignore
+.env
+.env.dev
+.env.prod
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.beta.local
+
+# Firebase service account files
+service-account.json
+**/service-account.json
+**/service-account*.json
+*-service-account.json
