@@ -42,6 +42,36 @@ try {
   console.warn('Error accessing service account file:', error.message)
 }
 
+// Define Firebase config for runtime - pull from environment variables if available
+const runtimeFirebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY || firebaseConfig.apiKey,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
+  projectId: process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId,
+  storageBucket:
+    process.env.FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
+  messagingSenderId:
+    process.env.FIREBASE_MESSAGING_SENDER_ID ||
+    firebaseConfig.messagingSenderId,
+  appId: process.env.FIREBASE_APP_ID || firebaseConfig.appId,
+  measurementId:
+    process.env.FIREBASE_MEASUREMENT_ID || firebaseConfig.measurementId,
+}
+
+// Debug Firebase config (masking sensitive values)
+console.log('Runtime Firebase config:', {
+  apiKey: runtimeFirebaseConfig.apiKey ? '***MASKED***' : undefined,
+  authDomain: runtimeFirebaseConfig.authDomain,
+  projectId: runtimeFirebaseConfig.projectId,
+  storageBucket: runtimeFirebaseConfig.storageBucket,
+  messagingSenderId: runtimeFirebaseConfig.messagingSenderId
+    ? '***MASKED***'
+    : undefined,
+  appId: runtimeFirebaseConfig.appId ? '***MASKED***' : undefined,
+  measurementId: runtimeFirebaseConfig.measurementId
+    ? '***MASKED***'
+    : undefined,
+})
+
 export default defineNuxtConfig({
   srcDir: './',
   compatibilityDate: '2025-05-15',
@@ -57,7 +87,7 @@ export default defineNuxtConfig({
 
   // Move VueFire configuration to the top-level vuefire property as per docs
   vuefire: {
-    config: firebaseConfig,
+    config: runtimeFirebaseConfig,
     auth: {
       enabled: true,
       sessionCookie: false,
@@ -123,14 +153,14 @@ export default defineNuxtConfig({
     environment: envName, // dev, staging, or prod
     // Store Firebase configuration in runtime config for server access
     firebase: {
-      ...firebaseConfig,
+      ...runtimeFirebaseConfig,
     },
     public: {
       recaptchaSiteKey: process.env.NUXT_PUBLIC_RECAPTCHA_SITE_KEY || '',
       envName: envName,
       // Expose Firebase config to client
       firebase: {
-        ...firebaseConfig,
+        ...runtimeFirebaseConfig,
       },
     },
   },
@@ -141,10 +171,23 @@ export default defineNuxtConfig({
     // Configure Firebase Gen2 functions
     firebase: {
       gen: 2, // Use 2nd generation Cloud Functions
-      nodeVersion: '18', // Use Node.js 18 runtime instead of 20
+      nodeVersion: '18', // Use Node.js 18 runtime
       httpsOptions: {
         region: process.env.FIREBASE_REGION || 'us-central1',
-        maxInstances: 10,
+        minInstances: parseInt(
+          process.env.FIREBASE_FUNCTION_MIN_INSTANCES || '0'
+        ),
+        maxInstances: parseInt(
+          process.env.FIREBASE_FUNCTION_MAX_INSTANCES || '10'
+        ),
+        memory: process.env.FIREBASE_FUNCTION_MEMORY
+          ? { value: () => process.env.FIREBASE_FUNCTION_MEMORY }
+          : '1GiB', // Use GiB format with suffix
+        cpu: parseInt(process.env.FIREBASE_FUNCTION_CPU || '1'),
+        timeoutSeconds: parseInt(process.env.FIREBASE_FUNCTION_TIMEOUT || '60'),
+        concurrency: parseInt(
+          process.env.FIREBASE_FUNCTION_CONCURRENCY || '80'
+        ),
       },
     },
   },
