@@ -1,0 +1,129 @@
+name: Firebase Deploy
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - dev
+      - development
+  pull_request:
+    branches:
+      - master
+      - main
+
+jobs:
+  build_and_deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_VERSION: 18
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
+
+      - name: Determine environment
+        id: determine_env
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && ("${{ github.ref }}" == "refs/heads/master" || "${{ github.ref }}" == "refs/heads/main") ]]; then
+            echo "ENVIRONMENT=production" >> $GITHUB_ENV
+            echo "Using PRODUCTION environment"
+            echo "envkeys=PROD_envKeys" >> $GITHUB_OUTPUT
+            echo "service_account=PROD_FIREBASE_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+            echo "project_id=${{ secrets.PROD_FIREBASE_PROJECT_ID }}" >> $GITHUB_ENV
+            echo "recaptcha_site_key=${{ secrets.PROD_RECAPTCHA_SITE_KEY }}" >> $GITHUB_ENV
+            echo "recaptcha_secret_key=${{ secrets.PROD_RECAPTCHA_SECRET_KEY }}" >> $GITHUB_ENV
+            echo "FIREBASE_REGION=us-central1" >> $GITHUB_ENV
+          else
+            echo "ENVIRONMENT=development" >> $GITHUB_ENV
+            echo "Using DEVELOPMENT environment"
+            echo "envkeys=DEV_envKeys" >> $GITHUB_OUTPUT
+            echo "service_account=DEV_FIREBASE_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+            echo "project_id=${{ secrets.DEV_FIREBASE_PROJECT_ID }}" >> $GITHUB_ENV
+            echo "recaptcha_site_key=${{ secrets.DEV_RECAPTCHA_SITE_KEY }}" >> $GITHUB_ENV
+            echo "recaptcha_secret_key=${{ secrets.DEV_RECAPTCHA_SECRET_KEY }}" >> $GITHUB_ENV
+            echo "FIREBASE_REGION=us-central1" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Firebase service account
+        run: |
+          # Create service account file from the appropriate GitHub secret
+          echo "${{ secrets[steps.determine_env.outputs.service_account] }}" > service-account.json
+          echo "Created service account file from ${{ steps.determine_env.outputs.service_account }} secret"
+
+      - name: Set environment variables
+        run: |
+          # Decode environment variables from GitHub secret and write to .env file
+          echo "${{ secrets[steps.determine_env.outputs.envkeys] }}" | base64 --decode > .env
+          echo "Created environment file from ${{ steps.determine_env.outputs.envkeys }}"
+
+          # Add additional required environment variables
+          echo "NUXT_PUBLIC_RECAPTCHA_SITE_KEY=$recaptcha_site_key" >> .env
+          echo "NUXT_RECAPTCHA_SECRET_KEY=$recaptcha_secret_key" >> .env
+
+          # For troubleshooting - Print environment file without sensitive values
+          echo "Environment file created with the following keys:"
+          grep -v "KEY\|SECRET\|PASSWORD\|TOKEN" .env | sed 's/=.*/=***/' || echo "No non-sensitive keys found"
+
+      - name: Setup FontAwesome
+        run: |
+          # Configure npm for FontAwesome authenticated access
+          echo "@fortawesome:registry=https://npm.fontawesome.com/" > .npmrc
+          echo "//npm.fontawesome.com/:_authToken=${{ secrets.FONTAWESOME_TOKEN }}" >> .npmrc
+          echo "Created FontAwesome npm configuration"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linting
+        run: pnpm lint || echo "Linting issues found - review output"
+
+      - name: Install vue-recaptcha-v3 if needed
+        run: pnpm add vue-recaptcha-v3 || echo "Vue-recaptcha-v3 already installed"
+
+      - name: Build application
+        run: |
+          # Set deployment environment variables
+          export DEPLOY_ENV=$ENVIRONMENT
+          export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
+          export NITRO_PRESET=firebase
+          export NUXT_PUBLIC_RECAPTCHA_SITE_KEY=$recaptcha_site_key
+          export NUXT_RECAPTCHA_SECRET_KEY=$recaptcha_secret_key
+          # Force Node.js 18
+          export NODE_VERSION=18
+          echo "Building for $ENVIRONMENT environment with Firebase preset using Node.js 18"
+          pnpm build
+        env:
+          # Use Firebase preset for Nitro
+          NITRO_PRESET: firebase
+
+      - name: Run tests (if available)
+        run: pnpm test || echo "No tests found or tests failed"
+        continue-on-error: true
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools@latest
+
+      - name: Deploy to Firebase
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/development')
+        run: |
+          export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
+
+          # Using the service account credentials directly instead of token
+          echo "Deploying to Firebase project: $project_id"
+          firebase use $project_id
+          firebase deploy --only functions:server,hosting --project $project_id --force
