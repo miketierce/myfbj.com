@@ -145,7 +145,8 @@ jobs:
         continue-on-error: true
 
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools@latest
+        run: npm install -g firebase-tools@13.0.2
+        # Using v13.0.2 which is the latest version compatible with Node.js 18
 
       - name: Deploy to Firebase
         if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/development')
