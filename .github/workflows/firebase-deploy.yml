@@ -201,7 +201,13 @@ jobs:
         run: |
           export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
 
-          # Using the service account credentials directly instead of token
+          # Extract service account details for debugging
+          PROJECT_ID=$(jq -r '.project_id' service-account.json)
+          CLIENT_EMAIL=$(jq -r '.client_email' service-account.json)
+          echo "Service account project: $PROJECT_ID"
+          echo "Service account email: $CLIENT_EMAIL"
+
+          # Using the service account credentials directly
           echo "Deploying to Firebase project: $project_id"
           firebase use $project_id --non-interactive
 
@@ -239,5 +245,12 @@ jobs:
           echo "  Timeout: $firebase_timeout s"
           echo "  Concurrency: $firebase_concurrency"
 
-          # Deploy with non-interactive flag to prevent prompts
-          firebase deploy --only functions:server,hosting,firestore --project $project_id --non-interactive --force
+          # Deploy each component separately to isolate any issues
+          echo "Deploying Firestore rules and indexes..."
+          firebase deploy --only firestore --project $project_id --non-interactive || echo "Firestore rules deployment failed, will try to continue with the rest"
+
+          echo "Deploying hosting..."
+          firebase deploy --only hosting --project $project_id --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
+
+          echo "Deploying functions..."
+          firebase deploy --only functions:server --project $project_id --non-interactive
