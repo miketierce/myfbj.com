@@ -49,6 +49,8 @@ jobs:
             echo "recaptcha_secret_key=${{ secrets.PROD_RECAPTCHA_SECRET_KEY }}" >> $GITHUB_ENV
             echo "FIREBASE_REGION=us-central1" >> $GITHUB_ENV
             echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
+            echo "PROJECT=production" >> $GITHUB_ENV
+            echo "PROJECT_ID=${{ secrets.PROD_FIREBASE_PROJECT_ID }}" >> $GITHUB_ENV
           else
             echo "ENVIRONMENT=development" >> $GITHUB_ENV
             echo "Using DEVELOPMENT environment"
@@ -59,24 +61,38 @@ jobs:
             echo "recaptcha_secret_key=${{ secrets.DEV_RECAPTCHA_SECRET_KEY }}" >> $GITHUB_ENV
             echo "FIREBASE_REGION=us-central1" >> $GITHUB_ENV
             echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
+            echo "PROJECT=development" >> $GITHUB_ENV
+            echo "PROJECT_ID=${{ secrets.DEV_FIREBASE_PROJECT_ID }}" >> $GITHUB_ENV
           fi
 
-      - name: Setup Firebase service account
-        run: |
-          # Create service account file from the appropriate GitHub secret
-          echo "${{ secrets[steps.determine_env.outputs.service_account] }}" > service-account.json
-          echo "Created service account file from ${{ steps.determine_env.outputs.service_account }} secret"
+      # Set up Google Cloud authentication with simplified approach
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ env.PROJECT == 'production'
+            && secrets.PROD_FIREBASE_SERVICE_ACCOUNT
+            || secrets.DEV_FIREBASE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
 
-          # Verify service account file exists and has content
-          if [ -s service-account.json ]; then
-            echo "✅ Service account file created successfully with content"
-          else
-            echo "❌ Service account file is empty or not created"
-            exit 1
-          fi
+      # Configure gcloud CLI with necessary roles for service usage
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: '461.0.0'
+          project_id: ${{ env.PROJECT_ID }}
 
+      # Set environment variables
       - name: Set environment variables
         run: |
+          # Set the Google Application Credentials to the file created by the auth step
+          echo "GOOGLE_APPLICATION_CREDENTIALS=${{ steps.auth.outputs.credentials_file_path }}" >> $GITHUB_ENV
+
+          # Create a symbolic link to service-account.json for compatibility with existing code
+          ln -sf ${{ steps.auth.outputs.credentials_file_path }} service-account.json
+          echo "Created symbolic link from ${{ steps.auth.outputs.credentials_file_path }} to service-account.json"
+
           # Decode environment variables from GitHub secret and write to .env file
           echo "${{ secrets[steps.determine_env.outputs.envkeys] }}" | base64 --decode > .env
           echo "Created environment file from ${{ steps.determine_env.outputs.envkeys }}"
@@ -110,6 +126,20 @@ jobs:
             echo "❌ Environment file is empty or not created"
             exit 1
           fi
+
+      # Try to enable required APIs before deployment (may fail if permissions insufficient)
+      - name: Enable required Google Cloud APIs
+        continue-on-error: true
+        run: |
+          echo "Attempting to enable required Google Cloud APIs for project ${{ env.PROJECT_ID }}..."
+
+          gcloud services enable firebase.googleapis.com --project ${{ env.PROJECT_ID }} || echo "Could not enable firebase.googleapis.com - may already be enabled"
+          gcloud services enable cloudbuild.googleapis.com --project ${{ env.PROJECT_ID }} || echo "Could not enable cloudbuild.googleapis.com - may already be enabled"
+          gcloud services enable artifactregistry.googleapis.com --project ${{ env.PROJECT_ID }} || echo "Could not enable artifactregistry.googleapis.com - may already be enabled"
+          gcloud services enable run.googleapis.com --project ${{ env.PROJECT_ID }} || echo "Could not enable run.googleapis.com - may already be enabled"
+          gcloud services enable containerregistry.googleapis.com --project ${{ env.PROJECT_ID }} || echo "Could not enable containerregistry.googleapis.com - may already be enabled"
+
+          echo "API enabling step complete"
 
       - name: Check package.json for Font Awesome dependencies
         id: check_fa
@@ -157,6 +187,11 @@ jobs:
       - name: Run Nuxt prepare
         run: |
           echo "Running nuxt prepare after dependencies are installed and service account is available"
+          # Verify the service account file is accessible
+          echo "Service account file path: $GOOGLE_APPLICATION_CREDENTIALS"
+          ls -l $GOOGLE_APPLICATION_CREDENTIALS
+
+          # Run nuxt prepare
           pnpm nuxt prepare || pnpm exec nuxt prepare
 
       - name: Verify Firebase configuration
