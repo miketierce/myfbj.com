@@ -9,8 +9,49 @@
     "cleanUrls": true,
     "rewrites": [
       {
+        "source": "/_nuxt/**",
+        "destination": "/_nuxt/**"
+      },
+      {
+        "source": "/assets/**",
+        "destination": "/assets/**"
+      },
+      {
+        "source": "**/*.{js,css,png,jpg,jpeg,gif,webp,svg,ico,ttf,woff,woff2}",
+        "destination": "/$1"
+      },
+      {
         "source": "**",
         "function": "server"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.{js,css}",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "**/*.{jpg,jpeg,png,gif,webp,svg,ico}",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "**/*.{ttf,woff,woff2}",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
       }
     ]
   },

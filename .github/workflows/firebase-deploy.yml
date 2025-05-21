@@ -232,6 +232,13 @@ jobs:
               "
               echo "Updated package.json in .output/server with firebase-functions dependency"
             fi
+
+            # Now explicitly install the dependencies in the output directory
+            echo "Installing dependencies in .output/server directory..."
+            cd .output/server
+            pnpm install firebase-functions firebase-admin --no-save
+            cd ../..
+            echo "Dependencies installed in .output/server"
           else
             echo "Warning: .output/server directory not found. Nuxt build may have failed."
           fi
