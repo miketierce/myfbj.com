@@ -20,5 +20,8 @@ service-account.json
 *-service-account.json
 
 # SQL
+.data
 .data/content
+.data/content/contents.sqlite
+.data/content/contents.sqlite
 .data/content/contents.sqlite
