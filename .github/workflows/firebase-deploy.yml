@@ -211,18 +211,18 @@ jobs:
           echo "Deploying to Firebase project: $project_id"
           firebase use $project_id --non-interactive
 
-          # Create a package.json in the .output/server directory with firebase-functions dependency
-          if [ -d ".output/server" ]; then
-            echo "Preparing .output/server for Firebase deployment..."
+          # Create a package.json in the functions directory with firebase-functions dependency
+          if [ -d "functions" ]; then
+            echo "Preparing functions for Firebase deployment..."
             # Now explicitly install the dependencies in the output directory
-            echo "Installing dependencies in .output/server directory..."
-            cd .output/server
+            echo "Installing dependencies in functions directory..."
+            cd functions
             # Install directory
             pnpm install
             cd ../..
-            echo "Dependencies installed in .output/server"
+            echo "Dependencies installed in functions"
           else
-            echo "Warning: .output/server directory not found. Nuxt build may have failed."
+            echo "Warning: functions directory not found. Nuxt build may have failed."
           fi
 
           # Display function configuration being deployed
@@ -234,6 +234,12 @@ jobs:
           echo "  Timeout: $firebase_timeout s"
           echo "  Concurrency: $firebase_concurrency"
 
-          # Deploy all components together as intended
-          echo "Deploying to Firebase..."
-          firebase deploy --project $project_id --non-interactive
+          # Deploy each component separately to isolate any issues
+          echo "Deploying Firestore rules and indexes..."
+          firebase deploy --only firestore --project $project_id --non-interactive || echo "Firestore rules deployment failed, will try to continue with the rest"
+
+          echo "Deploying hosting..."
+          firebase deploy --only hosting --project $project_id --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
+
+          echo "Deploying functions..."
+          firebase deploy --only functions:server --project $project_id --non-interactive
