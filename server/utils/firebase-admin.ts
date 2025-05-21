@@ -155,13 +155,60 @@ try {
     // Check for standard GOOGLE_APPLICATION_CREDENTIALS environment variable
     else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       try {
-        if (fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
-          serviceAccount = JSON.parse(
-            fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8')
-          )
-          console.log(
-            'Using service account from GOOGLE_APPLICATION_CREDENTIALS environment variable'
-          )
+        const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
+        console.log(
+          `Attempting to read service account from: ${credentialsPath}`
+        )
+
+        if (fs.existsSync(credentialsPath)) {
+          try {
+            const fileContent = fs.readFileSync(credentialsPath, 'utf8')
+
+            // Log the first few characters to debug (without revealing sensitive info)
+            console.log(
+              `Service account file read (first 10 chars): ${fileContent.substring(
+                0,
+                10
+              )}...`
+            )
+
+            // Try parsing with more detailed error handling
+            try {
+              serviceAccount = JSON.parse(fileContent)
+              console.log(
+                'Successfully parsed service account JSON from GOOGLE_APPLICATION_CREDENTIALS file'
+              )
+
+              // Validate key service account fields
+              if (!serviceAccount.project_id)
+                console.warn(
+                  'Warning: service account missing project_id field'
+                )
+              if (!serviceAccount.client_email)
+                console.warn(
+                  'Warning: service account missing client_email field'
+                )
+              if (!serviceAccount.private_key)
+                console.warn(
+                  'Warning: service account missing private_key field'
+                )
+            } catch (parseErr) {
+              console.error(
+                'JSON parsing error in GOOGLE_APPLICATION_CREDENTIALS file:',
+                parseErr.message
+              )
+              console.error(
+                'First 20 chars of file:',
+                fileContent.substring(0, 20)
+              )
+              throw parseErr // Re-throw to be caught by outer catch
+            }
+          } catch (readErr) {
+            console.error(
+              `Error reading service account file: ${readErr.message}`
+            )
+            throw readErr // Re-throw to be caught by outer catch
+          }
         } else {
           console.warn(
             'GOOGLE_APPLICATION_CREDENTIALS file does not exist:',

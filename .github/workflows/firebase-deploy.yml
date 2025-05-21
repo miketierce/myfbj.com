@@ -73,13 +73,39 @@ jobs:
 
       - name: Setup Firebase service account
         run: |
-          # Create service account file from the appropriate GitHub secret
-          echo "${{ secrets[steps.determine_env.outputs.service_account] }}" > service-account.json
+          # Ensure jq is installed (for JSON validation)
+          sudo apt-get update -y && sudo apt-get install -y jq
 
-          # Set GOOGLE_APPLICATION_CREDENTIALS env var to point to the file
+          # Write service account JSON to file using jq for proper formatting
+          echo '${{ secrets[steps.determine_env.outputs.service_account] }}' | jq . > service-account.json
+
+          # Validate the JSON syntax
+          jq empty service-account.json || { echo "Invalid JSON in service account file"; exit 1; }
+
+          # Verify key fields exist in service account file
+          if ! jq -e '.project_id' service-account.json > /dev/null; then
+            echo "Error: service account JSON missing project_id field"
+            exit 1
+          fi
+          if ! jq -e '.client_email' service-account.json > /dev/null; then
+            echo "Error: service account JSON missing client_email field"
+            exit 1
+          fi
+          if ! jq -e '.private_key' service-account.json > /dev/null; then
+            echo "Error: service account JSON missing private_key field"
+            exit 1
+          fi
+
+          # Set absolute path to service account file as environment variable
           echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/service-account.json" >> $GITHUB_ENV
 
-          echo "Created service account file from ${{ steps.determine_env.outputs.service_account }} secret"
+          # Also set a flag so code knows we're in CI environment
+          echo "CI=true" >> $GITHUB_ENV
+
+          # Add the project root to NODE_PATH so imports work correctly
+          echo "NODE_PATH=$(pwd)" >> $GITHUB_ENV
+
+          echo "Service account validated and GOOGLE_APPLICATION_CREDENTIALS set to $(pwd)/service-account.json"
 
       - name: Set environment variables
         run: |
