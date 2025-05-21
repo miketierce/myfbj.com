@@ -15,7 +15,10 @@ This project is set up as a template repository, which means you can:
 1. Navigate to the GitHub repository at https://github.com/Forward-Arrow-Solutions/nuxt-firebase-template
 2. Click the "Use this template" button
 3. Choose "Create a new repository"
-4. Follow the prompts to create your new project based on this template
+4. **Important**: Select "Include only the default branch" option
+   - This ensures you get only the clean template code without any development history
+   - The default branch (`clean-master`) contains the carefully curated template without sensitive data
+5. Follow the prompts to create your new project based on this template
 
 #### Option 2: Manual Clone and Setup
 1. Clone this repository:
@@ -116,20 +119,51 @@ To keep your project up-to-date with enhancements and fixes made to the template
 
 3. Review changes before merging:
    ```bash
+   # See what changes are available in the template
    git log --oneline HEAD..template/clean-master
    ```
 
-4. Merge updates into your project:
+4. Choose your update strategy:
+
+   **Option A: Cherry-pick specific commits**
+   If you only want specific updates:
    ```bash
+   # Replace abc1234 with the actual commit hash
+   git cherry-pick abc1234
+   ```
+
+   **Option B: Merge all template changes**
+   To get all updates from the template:
+   ```bash
+   # Merge all changes from the template's clean-master branch
    git merge template/clean-master --allow-unrelated-histories
    ```
 
-5. Resolve any merge conflicts that arise
+5. Resolve any merge conflicts that arise:
    ```bash
-   # After resolving conflicts
+   # After resolving conflicts in your editor
    git add .
    git commit -m "Merged updates from template"
    ```
+
+6. Test the changes to ensure everything works properly:
+   ```bash
+   pnpm install   # If dependencies were updated
+   pnpm dev       # Start the development server
+   ```
+
+#### Tips for Managing Template Updates
+
+- **Create a branch**: Before pulling updates, create a new branch to test the changes
+  ```bash
+  git checkout -b template-update
+  ```
+
+- **Selective updates**: Use `git cherry-pick` for smaller, specific updates rather than merging everything
+
+- **Track what you've customized**: Keep notes on files you've heavily customized to make conflict resolution easier
+
+- **Update regularly**: Pull template updates regularly to avoid large, complex merges
 
 ### Customizing the Template for Your Project
 
