@@ -107,49 +107,91 @@ After creating a project from this template, you'll need to create:
 
 To keep your project up-to-date with enhancements and fixes made to the template:
 
-1. Add the template as a remote repository (do this once):
+#### For New Projects Created From the Template
+
+When you create a new repository from a GitHub template, there are two common scenarios:
+
+**Scenario 1: You created a new GitHub repo but are still working in the original template locally**
+
+In this case, your remotes will look like this when you run `git remote -v`:
+```
+origin  https://github.com/Forward-Arrow-Solutions/nuxt-firebase-template.git (fetch)
+origin  https://github.com/Forward-Arrow-Solutions/nuxt-firebase-template.git (push)
+```
+
+To set up your repo properly:
+
+1. Change your origin to point to your NEW repository:
+   ```bash
+   git remote set-url origin https://github.com/YOUR-USERNAME/YOUR-NEW-REPO.git
+   ```
+
+2. Push your code to your new repository:
+   ```bash
+   git push -u origin clean-master
+   ```
+
+3. Add the template as a separate remote:
    ```bash
    git remote add template https://github.com/Forward-Arrow-Solutions/nuxt-firebase-template.git
    ```
 
-2. Fetch updates from the template:
+**Scenario 2: You've already cloned your new repository from GitHub**
+
+If you've created a new repo from the template on GitHub and then cloned YOUR repo (not the template), you're ready to set up template updates:
+
+1. Add the template as a remote:
+   ```bash
+   git remote add template https://github.com/Forward-Arrow-Solutions/nuxt-firebase-template.git
+   ```
+
+2. Fetch the template branches:
    ```bash
    git fetch template
    ```
 
-3. Review changes before merging:
+3. Verify what branches are available from the template:
    ```bash
-   # See what changes are available in the template
+   git branch -r | grep template
+   ```
+   You should see something like `template/clean-master` or `template/master`.
+
+**Merging Template Updates**
+
+After setting up the remotes correctly:
+
+1. Check what changes are available:
+   ```bash
+   # Use the actual branch name you saw in step 3 above
    git log --oneline HEAD..template/clean-master
    ```
 
-4. Choose your update strategy:
-
-   **Option A: Cherry-pick specific commits**
-   If you only want specific updates:
+2. Merge the changes:
    ```bash
-   # Replace abc1234 with the actual commit hash
-   git cherry-pick abc1234
-   ```
-
-   **Option B: Merge all template changes**
-   To get all updates from the template:
-   ```bash
-   # Merge all changes from the template's clean-master branch
    git merge template/clean-master --allow-unrelated-histories
    ```
 
-5. Resolve any merge conflicts that arise:
+3. Resolve conflicts and test as described below.
+
+#### If You're Still Having Issues with "Not Something We Can Merge"
+
+If you get the error "not something we can merge", verify your branch names:
+
+1. Check what remotes and branches are available:
    ```bash
-   # After resolving conflicts in your editor
-   git add .
-   git commit -m "Merged updates from template"
+   git remote -v
+   git branch -r
    ```
 
-6. Test the changes to ensure everything works properly:
+2. If you see only `origin/clean-master` and no `template/clean-master`, then:
    ```bash
-   pnpm install   # If dependencies were updated
-   pnpm dev       # Start the development server
+   # Since the template is your current origin, use:
+   git merge origin/clean-master --allow-unrelated-histories
+
+   # Or, to properly set up the template as a separate remote:
+   git remote add template https://github.com/Forward-Arrow-Solutions/nuxt-firebase-template.git
+   git fetch template
+   git merge template/clean-master --allow-unrelated-histories
    ```
 
 #### Tips for Managing Template Updates
