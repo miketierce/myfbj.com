@@ -12,18 +12,30 @@
           } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
             theme = 'wireframeDark';
           }
+
           // Apply theme classes
           if (theme === 'wireframeDark') {
             document.documentElement.classList.add('dark-theme');
             document.documentElement.classList.remove('light-theme');
+            // Apply background color directly to body as early as possible
+            document.addEventListener('DOMContentLoaded', function() {
+              document.body.style.backgroundColor = '#121212';
+            });
           } else {
             document.documentElement.classList.add('light-theme');
             document.documentElement.classList.remove('dark-theme');
+            // Apply background color directly to body as early as possible
+            document.addEventListener('DOMContentLoaded', function() {
+              document.body.style.backgroundColor = '#FFFFFF';
+            });
           }
         } catch (e) {
           // Fallback if script fails, default to light theme
           document.documentElement.classList.add('light-theme');
           document.documentElement.classList.remove('dark-theme');
+          document.addEventListener('DOMContentLoaded', function() {
+            document.body.style.backgroundColor = '#FFFFFF';
+          });
         } finally {
           // Always remove initializing class once theme is determined
           document.documentElement.classList.remove('theme-initializing');

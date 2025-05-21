@@ -37,9 +37,13 @@ export const useAppTheme = () => {
           if (themeName === 'wireframeDark') {
             document.documentElement.classList.add('dark-theme')
             document.documentElement.classList.remove('light-theme')
+            // Apply background color directly to body
+            document.body.style.backgroundColor = '#121212'
           } else {
             document.documentElement.classList.add('light-theme')
             document.documentElement.classList.remove('dark-theme')
+            // Apply background color directly to body
+            document.body.style.backgroundColor = '#FFFFFF'
           }
         }
       }

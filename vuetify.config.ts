@@ -207,8 +207,17 @@ body {
   letter-spacing: 0.02em;
   color: rgb(var(--v-theme-on-background));
   line-height: 1.5;
-  background-color: rgb(var(--v-theme-background));
+  background-color: rgb(var(--v-theme-background)) !important;
   transition: color 0.3s ease, background-color 0.3s ease;
+}
+
+/* Explicit background colors for light and dark themes to ensure they're applied */
+html.light-theme body {
+  background-color: #FFFFFF !important;
+}
+
+html.dark-theme body {
+  background-color: #121212 !important;
 }
 
 /* Shadow variables for light and dark themes */
