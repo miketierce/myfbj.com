@@ -219,7 +219,7 @@ jobs:
             cd functions
             # Install directory
             pnpm install
-            cd ../..
+            cd ..
             echo "Dependencies installed in functions"
           else
             echo "Warning: functions directory not found. Nuxt build may have failed."
