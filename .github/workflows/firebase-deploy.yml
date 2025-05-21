@@ -236,7 +236,7 @@ jobs:
             # Now explicitly install the dependencies in the output directory
             echo "Installing dependencies in .output/server directory..."
             cd .output/server
-            pnpm install firebase-functions firebase-admin --no-save
+            pnpm add firebase-functions@5.1.1 firebase-admin@12.7.0
             cd ../..
             echo "Dependencies installed in .output/server"
           else
