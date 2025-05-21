@@ -75,6 +75,10 @@ jobs:
         run: |
           # Create service account file from the appropriate GitHub secret
           echo "${{ secrets[steps.determine_env.outputs.service_account] }}" > service-account.json
+
+          # Set GOOGLE_APPLICATION_CREDENTIALS env var to point to the file
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/service-account.json" >> $GITHUB_ENV
+
           echo "Created service account file from ${{ steps.determine_env.outputs.service_account }} secret"
 
       - name: Set environment variables

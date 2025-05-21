@@ -15,10 +15,9 @@ const serviceAccountPath = resolve(__dirname, './service-account.json')
 let serviceAccountCredentials = null
 let hasServiceAccount = false
 
-// Only try to read the service account file if we're not in a build/CI environment
-const isCI = process.env.CI === 'true'
+// Check for service account file regardless of environment
 try {
-  if (!isCI && existsSync(serviceAccountPath)) {
+  if (existsSync(serviceAccountPath)) {
     try {
       // Read and parse the service account file
       const content = readFileSync(serviceAccountPath, 'utf8')
@@ -35,8 +34,22 @@ try {
     } catch (parseError: any) {
       console.warn('Invalid JSON in service account file:', parseError.message)
     }
-  } else if (!isCI) {
+  } else {
     console.log('No service account file found at:', serviceAccountPath)
+
+    // Try to get service account from environment variable in CI environments
+    if (process.env.CI === 'true' && process.env.SERVICE_ACCOUNT_JSON) {
+      try {
+        serviceAccountCredentials = JSON.parse(process.env.SERVICE_ACCOUNT_JSON)
+        hasServiceAccount = true
+        console.log('Service account loaded from environment variable')
+      } catch (parseError: any) {
+        console.warn(
+          'Invalid JSON in SERVICE_ACCOUNT_JSON env var:',
+          parseError.message
+        )
+      }
+    }
   }
 } catch (error: any) {
   console.warn('Error accessing service account file:', error.message)
