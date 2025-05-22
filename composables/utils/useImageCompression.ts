@@ -1,99 +1,176 @@
 import { ref } from 'vue'
-import ImageCompressor from 'js-image-compressor'
 
-export interface ImageCompressionOptions {
-  maxWidth?: number
-  maxHeight?: number
+interface CompressionOptions {
+  maxSizeMB?: number
+  maxWidthOrHeight?: number
   quality?: number
-  mimeType?: string
+  useWebWorker?: boolean
 }
 
 /**
- * Composable for image compression with js-image-compressor
+ * Composable for image compression functionality
+ * Uses browser Canvas API for compression
  */
 export function useImageCompression() {
   const isCompressing = ref(false)
-  const error = ref<string | null>(null)
+  const error = ref<Error | null>(null)
 
   /**
-   * Compresses an image file with configurable options
+   * Compress an image file
+   * @param file The image file to compress
+   * @param options Compression options
+   * @returns A promise that resolves to the compressed image file
    */
   const compressImage = async (
     file: File,
-    options: ImageCompressionOptions = {}
-  ): Promise<File | null> => {
-    if (!file) return null
+    options: CompressionOptions = {}
+  ): Promise<File> => {
+    const {
+      maxSizeMB = 1,
+      maxWidthOrHeight = 1920,
+      quality = 0.8,
+      useWebWorker = false,
+    } = options
 
-    const defaultOptions = {
-      maxWidth: 1920,
-      maxHeight: 1080,
-      quality: 0.8,
-      mimeType: file.type,
-    }
-
-    const compressorOptions = {
-      ...defaultOptions,
-      ...options,
+    // Check if file is an image
+    if (!file.type.startsWith('image/')) {
+      throw new Error('File is not an image')
     }
 
     isCompressing.value = true
     error.value = null
 
     try {
-      return await new Promise((resolve, reject) => {
-        // Create a safe instance of ImageCompressor that works with SSR
-        if (typeof window === 'undefined') {
-          reject(new Error('Image compression can only be used in browser'))
-          return
-        }
+      // Create an image element
+      const img = document.createElement('img')
+      const imgDataUrl = await readFileAsDataURL(file)
 
-        // Only run in browser
-        // Create a new compressor each time to avoid memory leaks
-        const compressor = new ImageCompressor({
-          quality: compressorOptions.quality,
-          mimeType: compressorOptions.mimeType,
-          success(result) {
-            // Convert compressed blob back to File object
-            const compressedFile = new File([result], file.name, {
-              type: compressorOptions.mimeType,
-            })
-            resolve(compressedFile)
-          },
-          error(err) {
-            reject(err)
-          },
-        })
-
-        // Start compression
-        compressor.compress(file, {
-          maxWidth: compressorOptions.maxWidth,
-          maxHeight: compressorOptions.maxHeight,
-        })
+      // Create a promise to handle image loading
+      const imageLoaded = new Promise<HTMLImageElement>((resolve, reject) => {
+        img.onload = () => resolve(img)
+        img.onerror = () => reject(new Error('Failed to load image'))
+        img.src = imgDataUrl
       })
+
+      // Wait for image to load
+      const loadedImg = await imageLoaded
+
+      // Calculate dimensions while maintaining aspect ratio
+      const { width, height } = calculateDimensions(
+        loadedImg.width,
+        loadedImg.height,
+        maxWidthOrHeight
+      )
+
+      // Create canvas and context
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+
+      if (!ctx) {
+        throw new Error('Could not get canvas context')
+      }
+
+      // Draw image on canvas with new dimensions
+      ctx.drawImage(loadedImg, 0, 0, width, height)
+
+      // Get compressed image data as blob
+      let blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (result) => {
+            if (result) resolve(result)
+            else reject(new Error('Canvas to Blob conversion failed'))
+          },
+          file.type,
+          quality
+        )
+      })
+
+      // Check if file size is still larger than maxSizeMB
+      if (blob.size > maxSizeMB * 1024 * 1024) {
+        // Try with lower quality
+        const newQuality = quality * 0.8
+        blob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(
+            (result) => {
+              if (result) resolve(result)
+              else reject(new Error('Canvas to Blob conversion failed'))
+            },
+            file.type,
+            newQuality
+          )
+        })
+
+        // If still too large, try with even lower quality
+        if (blob.size > maxSizeMB * 1024 * 1024) {
+          blob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(
+              (result) => {
+                if (result) resolve(result)
+                else reject(new Error('Canvas to Blob conversion failed'))
+              },
+              file.type,
+              0.6
+            )
+          })
+        }
+      }
+
+      // Convert blob to file with same name
+      const compressedFile = new File([blob], file.name, {
+        type: file.type,
+        lastModified: Date.now(),
+      })
+
+      return compressedFile
     } catch (err: any) {
-      error.value = err?.message || 'Error compressing image'
-      console.error('Image compression error:', err)
-      return null
+      error.value = err
+      throw err
     } finally {
       isCompressing.value = false
     }
   }
 
   /**
-   * Helper function for profile images with standard sizing
+   * Read a file as a data URL
    */
-  const processProfileImage = async (file: File): Promise<File | null> => {
-    return await compressImage(file, {
-      maxWidth: 500,
-      maxHeight: 500,
-      quality: 0.85,
-      mimeType: 'image/jpeg',
+  const readFileAsDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsDataURL(file)
     })
+  }
+
+  /**
+   * Calculate new dimensions while maintaining aspect ratio
+   */
+  const calculateDimensions = (
+    width: number,
+    height: number,
+    maxSize: number
+  ): { width: number; height: number } => {
+    if (width <= maxSize && height <= maxSize) {
+      return { width, height }
+    }
+
+    if (width > height) {
+      return {
+        width: maxSize,
+        height: Math.round((height * maxSize) / width),
+      }
+    } else {
+      return {
+        width: Math.round((width * maxSize) / height),
+        height: maxSize,
+      }
+    }
   }
 
   return {
     compressImage,
-    processProfileImage,
     isCompressing,
     error,
   }

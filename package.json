@@ -16,7 +16,10 @@
     "generate:dev": "dotenv -c dev nuxt generate",
     "generate:prod": "dotenv -c prod nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "config:cors": "node scripts/configure-storage-cors.js",
+    "deploy": "nuxt build && firebase deploy",
+    "deploy:with-cors": "nuxt build && node scripts/configure-storage-cors.js && firebase deploy"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",
