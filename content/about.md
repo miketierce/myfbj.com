@@ -7,5 +7,5 @@ tags:
   - mentor
 ---
 
-This is the master branch about page
+This is the dev branch about page
 ![Steve's photo](/images/steve.jpg)
