@@ -208,26 +208,6 @@ useHead({
         </v-card-text>
       </v-card>
 
-      <!-- Theme settings card -->
-      <v-card class="mb-4">
-        <v-card-title>Theme Settings</v-card-title>
-        <v-card-text>
-          <div class="theme-settings">
-            <div class="current-theme">
-              <p>Current theme: <strong>{{ isDark ? 'Dark' : 'Light' }}</strong></p>
-            </div>
-
-            <v-btn
-              color="primary"
-              :prepend-icon="isDark ? 'fas fa-sun' : 'fas fa-moon'"
-              @click="toggleTheme"
-            >
-              Switch to {{ isDark ? 'Light' : 'Dark' }} Theme
-            </v-btn>
-          </div>
-        </v-card-text>
-      </v-card>
-
       <!-- User settings form - Replaces the old profile form -->
       <v-card v-if="isAuthenticated" class="mb-4">
         <v-card-title>Your Profile</v-card-title>
