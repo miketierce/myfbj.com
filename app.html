@@ -1,38 +1,65 @@
 <!DOCTYPE html>
-<html {{ HTML_ATTRS }} class="theme-initializing"> <!-- Added theme-initializing class -->
+<html {{ HTML_ATTRS }} class="theme-initializing">
   <head {{ HEAD_ATTRS }}>
     {{ HEAD }}
     <script>
       (function() {
         try {
-          const preference = localStorage.getItem('preferredTheme');
+          // Retrieve theme from cookie first for SSR consistency
+          const getCookie = function(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+          };
+
+          // Try to get theme from cookie first (for SSR consistency)
+          const cookieTheme = getCookie('preferredTheme');
+          // Fall back to localStorage or system preference
+          const localTheme = localStorage.getItem('preferredTheme');
+
           let theme = 'wireframe'; // Default theme
-          if (preference === 'wireframe' || preference === 'wireframeDark') {
-            theme = preference;
-          } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+
+          // Cookie has highest priority (for SSR consistency)
+          if (cookieTheme === 'wireframe' || cookieTheme === 'wireframeDark') {
+            theme = cookieTheme;
+          }
+          // Then localStorage
+          else if (localTheme === 'wireframe' || localTheme === 'wireframeDark') {
+            theme = localTheme;
+          }
+          // Then system preference
+          else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
             theme = 'wireframeDark';
           }
 
-          // Apply theme classes
+          // Apply theme classes - both the HTML class system AND Vuetify's class system
           if (theme === 'wireframeDark') {
             document.documentElement.classList.add('dark-theme');
+            document.documentElement.classList.add('v-theme--wireframeDark');
             document.documentElement.classList.remove('light-theme');
+            document.documentElement.classList.remove('v-theme--wireframe');
             // Apply background color directly to body as early as possible
             document.addEventListener('DOMContentLoaded', function() {
               document.body.style.backgroundColor = '#121212';
             });
           } else {
             document.documentElement.classList.add('light-theme');
+            document.documentElement.classList.add('v-theme--wireframe');
             document.documentElement.classList.remove('dark-theme');
+            document.documentElement.classList.remove('v-theme--wireframeDark');
             // Apply background color directly to body as early as possible
             document.addEventListener('DOMContentLoaded', function() {
               document.body.style.backgroundColor = '#FFFFFF';
             });
           }
         } catch (e) {
+          console.error('Theme initialization error:', e);
           // Fallback if script fails, default to light theme
           document.documentElement.classList.add('light-theme');
+          document.documentElement.classList.add('v-theme--wireframe');
           document.documentElement.classList.remove('dark-theme');
+          document.documentElement.classList.remove('v-theme--wireframeDark');
           document.addEventListener('DOMContentLoaded', function() {
             document.body.style.backgroundColor = '#FFFFFF';
           });

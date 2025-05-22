@@ -17,6 +17,9 @@ import {
   additionalCss,
 } from '../vuetify.config'
 
+// Import cookie parsing for SSR theme consistency
+import { useCookie } from '#app'
+
 // Define Font Awesome icons for Vuetify 3
 const aliases = {
   // Default set is fa, so these are for Font Awesome
@@ -69,10 +72,17 @@ const fa = {
 }
 
 export default defineNuxtPlugin((nuxtApp) => {
+  // Get theme preference from cookie for SSR consistency
+  let defaultTheme = 'wireframe'
+  const preferredThemeCookie = useCookie('preferredTheme')
+  if (preferredThemeCookie.value === 'wireframeDark') {
+    defaultTheme = 'wireframeDark'
+  }
+
   const vuetify = createVuetify({
-    // Use the theme configuration directly from vuetify.config.ts
+    // Use the theme configuration with SSR-consistent default theme
     theme: {
-      defaultTheme: 'wireframe',
+      defaultTheme,
       themes: {
         wireframe: wireframeTheme,
         wireframeDark: wireframeDarkTheme,
@@ -89,15 +99,20 @@ export default defineNuxtPlugin((nuxtApp) => {
   })
 
   // Provide a helper function to update theme class on the HTML element
-  // This is simpler than before - just sets the appropriate class based on the theme name
   nuxtApp.provide('updateThemeClasses', (themeName: string) => {
     if (import.meta.client) {
       if (themeName === 'wireframeDark') {
         document.documentElement.classList.add('dark-theme')
+        document.documentElement.classList.add('v-theme--wireframeDark')
         document.documentElement.classList.remove('light-theme')
+        document.documentElement.classList.remove('v-theme--wireframe')
+        document.body.style.backgroundColor = '#121212'
       } else {
         document.documentElement.classList.add('light-theme')
+        document.documentElement.classList.add('v-theme--wireframe')
         document.documentElement.classList.remove('dark-theme')
+        document.documentElement.classList.remove('v-theme--wireframeDark')
+        document.body.style.backgroundColor = '#FFFFFF'
       }
     }
   })
@@ -113,11 +128,25 @@ export default defineNuxtPlugin((nuxtApp) => {
     nuxtApp.hook('app:mounted', () => {
       document.head.appendChild(styleEl)
       console.log('Applied additional Vuetify styles from vuetify.config.ts')
+
+      // Ensure theme classes are applied after app is mounted
+      nuxtApp.$updateThemeClasses(
+        vuetify.theme?.global?.name?.value || defaultTheme
+      )
+    })
+
+    // Additional hook to ensure theme consistency during page transitions
+    nuxtApp.hook('page:finish', () => {
+      nuxtApp.$updateThemeClasses(
+        vuetify.theme?.global?.name?.value || defaultTheme
+      )
     })
   }
 
   console.log(
-    'Vuetify plugin initialized with wireframe themes from vuetify.config.ts'
+    `Vuetify plugin initialized with theme: ${defaultTheme} (from cookie: ${
+      preferredThemeCookie.value || 'none'
+    })`
   )
   nuxtApp.vueApp.use(vuetify)
 })

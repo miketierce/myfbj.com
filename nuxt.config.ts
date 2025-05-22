@@ -271,6 +271,7 @@ export default defineNuxtConfig({
   },
   // Include only necessary CSS files
   css: [
+    '@/assets/css/theme-initializer.css',
     'vuetify/styles',
     '@mdi/font/css/materialdesignicons.css',
     '@fortawesome/fontawesome-free/css/all.css',

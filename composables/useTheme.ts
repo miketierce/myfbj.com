@@ -2,10 +2,11 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useTheme as useVuetifyTheme } from 'vuetify'
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
-import { useCookie, useNuxtApp } from '#app'
+import { useCookie, useNuxtApp, useHead } from '#app'
 
 export const useAppTheme = () => {
-  const { $firebaseFirestore, $firebaseAuth } = useNuxtApp()
+  const { $firebaseFirestore, $firebaseAuth, $updateThemeClasses } =
+    useNuxtApp()
   const vuetifyTheme = ref<any>(null) // Vuetify's theme instance
 
   const preferredThemeCookie = useCookie<string>('preferredTheme', {
@@ -23,6 +24,16 @@ export const useAppTheme = () => {
   const authUser = ref<any>(null)
   const firestoreError = ref(false)
 
+  // Add SSR-compatible head management to ensure theme is applied during SSR
+  useHead(() => ({
+    htmlAttrs: {
+      class:
+        currentTheme.value === 'wireframeDark'
+          ? ['dark-theme', 'v-theme--wireframeDark']
+          : ['light-theme', 'v-theme--wireframe'],
+    },
+  }))
+
   const safeSetVuetifyTheme = (themeName: string) => {
     try {
       if (!vuetifyTheme.value && import.meta.client) {
@@ -36,14 +47,23 @@ export const useAppTheme = () => {
         if (import.meta.client) {
           if (themeName === 'wireframeDark') {
             document.documentElement.classList.add('dark-theme')
+            document.documentElement.classList.add('v-theme--wireframeDark')
             document.documentElement.classList.remove('light-theme')
+            document.documentElement.classList.remove('v-theme--wireframe')
             // Apply background color directly to body
             document.body.style.backgroundColor = '#121212'
           } else {
             document.documentElement.classList.add('light-theme')
+            document.documentElement.classList.add('v-theme--wireframe')
             document.documentElement.classList.remove('dark-theme')
+            document.documentElement.classList.remove('v-theme--wireframeDark')
             // Apply background color directly to body
             document.body.style.backgroundColor = '#FFFFFF'
+          }
+
+          // Also use the helper from the Vuetify plugin if available
+          if (typeof $updateThemeClasses === 'function') {
+            $updateThemeClasses(themeName)
           }
         }
       }
@@ -74,6 +94,9 @@ export const useAppTheme = () => {
       clientPreferredTheme = prefersDarkMode ? 'wireframeDark' : 'wireframe'
     }
 
+    // Immediately ensure Vuetify theme is in sync with currentTheme before any changes
+    safeSetVuetifyTheme(currentTheme.value)
+
     // If the client-side determined theme is different from what was used for hydration, update currentTheme.
     // This will trigger the watcher, which handles all side effects (cookie, localStorage, Vuetify, Firestore).
     if (currentTheme.value !== clientPreferredTheme) {
@@ -81,7 +104,6 @@ export const useAppTheme = () => {
     } else {
       // If the theme is already correct (i.e., cookie was the source or matched localStorage/system),
       // ensure Vuetify is set and localStorage/cookie are definitely in sync.
-      safeSetVuetifyTheme(currentTheme.value)
       if (localStorage.getItem('preferredTheme') !== currentTheme.value) {
         localStorage.setItem('preferredTheme', currentTheme.value)
       }

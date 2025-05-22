@@ -14,8 +14,10 @@ export default defineNuxtPlugin({
 
     // Log runtime configuration info (debug only, no sensitive values)
     if (process.dev) {
+      // Only include environment in server-side logs
+      // Client-side can only access public config
       console.log('Firebase plugin using runtime config:', {
-        environment: runtimeConfig.environment,
+        environment: process.server ? runtimeConfig.environment : 'client',
         projectId: runtimeConfig.public.firebase?.projectId || 'not-set',
         hasAuthDomain: !!runtimeConfig.public.firebase?.authDomain,
       })

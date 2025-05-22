@@ -1,0 +1,81 @@
+/* Theme initializer CSS - prevents theme flashing */
+
+/* Default styles applied before JavaScript loads */
+:root {
+  --v-theme-background-rgb: 255, 255, 255; /* Light theme default */
+  --v-theme-surface-rgb: 255, 255, 255;
+  --v-theme-primary-rgb: 0, 0, 0;
+  --v-theme-on-background-rgb: 0, 0, 0;
+  --v-theme-on-surface-rgb: 0, 0, 0;
+  --v-shadow-color-rgb: 0, 0, 0;
+  --v-shadow-opacity: 0.2;
+}
+
+/* Initial body styles to prevent flash */
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+  background-color: rgb(var(--v-theme-background-rgb)) !important;
+  color: rgb(var(--v-theme-on-background-rgb)) !important;
+}
+
+/* Theme initializing state - invisible content until theme is determined */
+html.theme-initializing {
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* Light theme variables (default) */
+html.light-theme {
+  --v-theme-background-rgb: 255, 255, 255;
+  --v-theme-surface-rgb: 255, 255, 255;
+  --v-theme-primary-rgb: 0, 0, 0;
+  --v-theme-on-background-rgb: 0, 0, 0;
+  --v-theme-on-surface-rgb: 0, 0, 0;
+  --v-shadow-color-rgb: 0, 0, 0;
+  --v-shadow-opacity: 0.2;
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+/* Dark theme variables */
+html.dark-theme {
+  --v-theme-background-rgb: 18, 18, 18;
+  --v-theme-surface-rgb: 18, 18, 18;
+  --v-theme-primary-rgb: 255, 255, 255;
+  --v-theme-on-background-rgb: 255, 255, 255;
+  --v-theme-on-surface-rgb: 255, 255, 255;
+  --v-shadow-color-rgb: 255, 255, 255;
+  --v-shadow-opacity: 0.25;
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+/* Set body background color based on theme */
+html.light-theme body {
+  background-color: rgb(255, 255, 255) !important;
+  color: rgb(0, 0, 0) !important;
+}
+
+html.dark-theme body {
+  background-color: rgb(18, 18, 18) !important;
+  color: rgb(255, 255, 255) !important;
+}
+
+/* Ensure Vuetify theme classes have proper variables */
+.v-theme--wireframe {
+  --v-theme-background: 255, 255, 255;
+  --v-theme-surface: 255, 255, 255;
+  --v-theme-primary: 0, 0, 0;
+  --v-theme-on-background: 0, 0, 0;
+  --v-theme-on-surface: 0, 0, 0;
+}
+
+.v-theme--wireframeDark {
+  --v-theme-background: 18, 18, 18;
+  --v-theme-surface: 18, 18, 18;
+  --v-theme-primary: 255, 255, 255;
+  --v-theme-on-background: 255, 255, 255;
+  --v-theme-on-surface: 255, 255, 255;
+}

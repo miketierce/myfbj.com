@@ -1,5 +1,5 @@
 <template>
-  <v-app :theme="currentTheme">
+  <v-app :theme="currentTheme" class="app-wrapper">
     <div class="app-layout">
       <header class="app-header">
         <div class="header-content">
@@ -223,23 +223,27 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeMount } from 'vue';
 import { useAppTheme } from '~/composables/useTheme';
 import { useAuth } from '~/composables/useAuth';
 import { useHead } from '#app';
 
-// Theme management - simplified approach
-const { currentTheme, isDark, toggleTheme } = useAppTheme();
+// Theme management from composable
+const { currentTheme, isDark, toggleTheme, isLoading: themeLoading } = useAppTheme();
 
-// Set html tag attributes for SSR and client-side (simplified)
+// Enhanced head management for SSR theme consistency
 useHead(computed(() => ({
   htmlAttrs: {
-    class: currentTheme.value === 'wireframeDark' ? 'dark-theme' : 'light-theme',
+    class: [
+      currentTheme.value === 'wireframeDark' ? 'dark-theme' : 'light-theme',
+      currentTheme.value === 'wireframeDark' ? 'v-theme--wireframeDark' : 'v-theme--wireframe',
+      themeLoading.value ? 'theme-initializing' : ''
+    ]
   }
 })));
 
 // Auth management
-const { user, isLoading: isAuthLoading, error, sendSignInLink, signInAnonymousUser, signOutUser, convertAnonymousToEmailLink, firestoreDisabled } = useAuth()
+const { user, isLoading: isAuthLoading, error, sendSignInLink, signInAnonymousUser, signOutUser, convertAnonymousToEmailLink, firestoreDisabled } = useAuth();
 
 // User menu state
 const userMenuOpen = ref(false)
@@ -354,12 +358,18 @@ const loginAnonymously = async () => {
 </script>
 
 <style scoped>
+.app-wrapper {
+  min-height: 100vh;
+  overflow: hidden;
+  background-color: rgb(var(--v-theme-background-rgb)) !important;
+}
+
 .app-layout {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: rgb(var(--v-theme-background));
-  color: rgb(var(--v-theme-on-background));
+  background-color: rgb(var(--v-theme-background-rgb));
+  color: rgb(var(--v-theme-on-background-rgb));
 }
 
 .app-header {
