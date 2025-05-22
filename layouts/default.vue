@@ -1,6 +1,6 @@
 <template>
   <v-app :theme="themeForRendering" class="app-wrapper" :data-theme="themeForRendering">
-    <div class="app-layout">
+    <v-main class="app-layout">
       <header class="app-header">
         <div class="header-content">
           <!-- Logo placeholder on the left -->
@@ -220,7 +220,7 @@
       >
         Login link sent to your email. Please check your inbox.
       </v-snackbar>
-    </div>
+    </v-main>
   </v-app>
 </template>
 
@@ -361,107 +361,6 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.app-wrapper {
-  min-height: 100vh;
-  overflow: hidden;
-}
-
-.app-layout {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-
-}
-
-.app-header {
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-}
-
-.header-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.logo-container {
-  flex-shrink: 0;
-}
-
-.logo-placeholder {
-  width: 80px;
-  height: 40px;
-  border: 1px dashed #000000; /* Default for light theme */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
-}
-
-html.dark-theme .logo-placeholder {
-  border-color: #ffffff;
-}
-
-.spacer {
-  flex-grow: 1;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.user-menu {
-  position: relative;
-}
-
-.user-btn {
-  min-width: 120px;
-}
-
-.main-content {
-  flex-grow: 1;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 1rem;
-}
-
-.error-message {
-  color: #cc0000; /* Default for light theme */
-  font-size: 0.875rem;
-}
-
-html.dark-theme .error-message {
-  color: #ff9999;
-}
-
-.theme-selector {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-}
-
-.user-info {
-  margin-bottom: 1rem;
-}
-
-.notification-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #f44336; /* This color is theme-agnostic, so no change needed */
-  border-radius: 50%;
-  display: inline-block;
-  margin-left: 4px;
-}
-
-.status-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+<style>
+/* Add any component-specific styles here */
 </style>

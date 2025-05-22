@@ -390,6 +390,12 @@
                     >
                       Theme updated successfully
                     </v-alert>
+
+                    <!-- Show theme state debugging info in development mode -->
+                    <pre v-if="isDevelopment" class="mt-6 pa-2" style="background: #f5f5f5; border-radius: 4px;">
+                      Current theme: {{ currentThemeValue }}
+                      isDarkTheme: {{ isDarkTheme }}
+                    </pre>
                   </div>
                 </v-card-text>
               </v-card>
