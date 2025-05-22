@@ -14,7 +14,7 @@
     @reset="resetForm"
   >
     <template #default>
-      <h2 class="text-h4 mb-4">User Settings</h2>
+      <div class="my-6"> </div>
 
       <!-- Authentication status message -->
       <v-alert
@@ -69,14 +69,6 @@
           @blur="validateField('bio')"
         />
 
-        <!-- Theme Selector -->
-        <v-select
-          v-model="formData.theme"
-          label="Theme"
-          :items="['light', 'dark', 'auto']"
-          :disabled="!isAuthenticated || isSubmitting"
-        />
-
         <!-- Notification Toggle -->
         <v-switch
           v-model="formData.notificationsEnabled"
@@ -87,7 +79,13 @@
 
         <!-- UI Preferences Section -->
         <v-expansion-panels variant="accordion" class="mt-4">
-          <v-expansion-panel title="UI Preferences">
+          <v-expansion-panel >
+                    <v-expansion-panel-title>
+          Item
+          <template v-slot:actions="{ expanded }">
+            <v-icon :color="!expanded ? 'primary' : ''" :icon="expanded ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></v-icon>
+          </template>
+        </v-expansion-panel-title>
             <v-expansion-panel-text>
               <!-- Font Size -->
               <v-radio-group

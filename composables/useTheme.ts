@@ -1,12 +1,19 @@
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useTheme as useVuetifyTheme } from 'vuetify'
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
-import { useCookie, useNuxtApp, useHead } from '#app'
+import { useCookie, useNuxtApp, useHead, useRequestEvent } from '#app'
+import { themeState } from '~/plugins/theme-state'
 
+// Single theme composable that uses the global theme state
 export const useAppTheme = () => {
-  const { $firebaseFirestore, $firebaseAuth, $updateThemeClasses } =
-    useNuxtApp()
+  const {
+    $firebaseFirestore,
+    $firebaseAuth,
+    $updateThemeClasses,
+    $themeState,
+  } = useNuxtApp()
+  const event = useRequestEvent()
   const vuetifyTheme = ref<any>(null) // Vuetify's theme instance
 
   const preferredThemeCookie = useCookie<string>('preferredTheme', {
@@ -15,8 +22,12 @@ export const useAppTheme = () => {
     path: '/',
   })
 
-  // Initialize currentTheme based ONLY on cookie or default, for SSR/hydration consistency
-  const initialThemeForHydration = preferredThemeCookie.value || 'wireframe'
+  // Check if we have SSR context theme information from auth claims
+  const ssrTheme = event?.context?.theme
+
+  // Initialize currentTheme based on SSR context, or cookie, or default
+  const initialThemeForHydration =
+    ssrTheme || preferredThemeCookie.value || 'wireframe'
   const currentTheme = ref<string>(initialThemeForHydration)
 
   const isLoading = ref(false)
@@ -72,11 +83,80 @@ export const useAppTheme = () => {
     }
   }
 
-  onMounted(() => {
-    // At this point, currentTheme.value is the SSR-consistent theme (from cookie or default).
-    // Hydration should have passed for elements depending on this initial state.
-    vuetifyTheme.value = useVuetifyTheme() // Initialize Vuetify theme instance client-side
+  // Use DOM manipulation instead of direct Vuetify theme API
+  // This avoids the "useTheme must be called from inside a setup function" error
+  const applyThemeClasses = (themeName: string) => {
+    if (!import.meta.client) return
 
+    try {
+      // Direct DOM manipulation for theme classes
+      if (themeName === 'wireframeDark') {
+        document.documentElement.classList.add('dark-theme')
+        document.documentElement.classList.add('v-theme--wireframeDark')
+        document.documentElement.classList.remove('light-theme')
+        document.documentElement.classList.remove('v-theme--wireframe')
+        // Apply background color directly to body
+        document.body.style.backgroundColor = '#121212'
+      } else {
+        document.documentElement.classList.add('light-theme')
+        document.documentElement.classList.add('v-theme--wireframe')
+        document.documentElement.classList.remove('dark-theme')
+        document.documentElement.classList.remove('v-theme--wireframeDark')
+        // Apply background color directly to body
+        document.body.style.backgroundColor = '#FFFFFF'
+      }
+
+      // Also use the helper from the Vuetify plugin if available
+      if (typeof $updateThemeClasses === 'function') {
+        $updateThemeClasses(themeName)
+      }
+
+      // Set theme on v-app elements via data attribute for reactivity
+      const vAppElements = document.querySelectorAll('.v-application')
+      vAppElements.forEach((el) => {
+        el.setAttribute('data-v-theme', themeName)
+      })
+    } catch (err) {
+      console.warn('Error applying theme classes:', err)
+    }
+  }
+
+  // Client-side initialization - instead of onMounted, expose this function
+  // which will be called from the component's setup function
+  const initializeTheme = () => {
+    if (!import.meta.client) return
+
+    // Initialize Vuetify theme instance client-side
+    vuetifyTheme.value = useVuetifyTheme()
+
+    // Check for server-provided theme from SSR context
+    const nuxtApp = useNuxtApp()
+    const ssrTheme =
+      nuxtApp.payload?.serverRenderedTheme ||
+      nuxtApp.payload?.data?.theme ||
+      event?.context?.theme
+
+    // If SSR provided a theme, use it directly to prevent hydration mismatch
+    if (ssrTheme === 'wireframe' || ssrTheme === 'wireframeDark') {
+      console.log(`Using SSR theme: ${ssrTheme}`)
+      currentTheme.value = ssrTheme
+      safeSetVuetifyTheme(ssrTheme)
+
+      // Also ensure localStorage matches to prevent future conflicts
+      if (import.meta.client) {
+        localStorage.setItem('preferredTheme', ssrTheme)
+      }
+
+      // Wait a tick to ensure components are mounted before proceeding
+      setTimeout(() => {
+        // After hydration is complete, we can set up normal listeners
+        setupClientThemeListeners()
+      }, 50)
+
+      return
+    }
+
+    // Otherwise, continue with normal client-side theme detection
     let clientPreferredTheme = currentTheme.value // Start with the SSR theme
 
     const themeFromLocalStorage = localStorage.getItem('preferredTheme')
@@ -114,6 +194,12 @@ export const useAppTheme = () => {
       }
     }
 
+    // Set up normal theme listeners
+    setupClientThemeListeners()
+  }
+
+  // Extract the theme listeners to a separate function for cleaner code
+  const setupClientThemeListeners = () => {
     // Auth listener for Firestore preferences
     if ($firebaseAuth) {
       try {
@@ -122,9 +208,10 @@ export const useAppTheme = () => {
           async (user) => {
             authUser.value = user
             isAuthReady.value = true
-            if (user && !user.isAnonymous) {
-              // Only load for non-anonymous users
-              await loadThemePreference(user.uid, false)
+            if (user) {
+              // Load for ALL users, including anonymous users
+              const isAnon = user.isAnonymous
+              await loadThemePreference(user.uid, isAnon)
             } else if (!user) {
               // User logged out or no user
               // Re-evaluate theme based on localStorage/system if auth state changes to no user
@@ -176,7 +263,37 @@ export const useAppTheme = () => {
       }
     }
     darkModeMediaQuery.addEventListener('change', systemThemeChangeHandler)
-  })
+  }
+
+  // Update the global state whenever currentTheme changes
+  if (import.meta.client) {
+    watch(
+      currentTheme,
+      (newTheme) => {
+        if ($themeState) {
+          $themeState.currentTheme = newTheme
+          $themeState.isDark = newTheme === 'wireframeDark'
+        } else if (themeState) {
+          // Fallback to direct state access if inject not available
+          themeState.currentTheme = newTheme
+          themeState.isDark = newTheme === 'wireframeDark'
+        }
+      },
+      { immediate: true }
+    )
+
+    watch(
+      isLoading,
+      (loading) => {
+        if ($themeState) {
+          $themeState.isLoading = loading
+        } else if (themeState) {
+          themeState.isLoading = loading
+        }
+      },
+      { immediate: true }
+    )
+  }
 
   watch(
     currentTheme,
@@ -189,12 +306,15 @@ export const useAppTheme = () => {
         return
       }
 
-      safeSetVuetifyTheme(newTheme) // Update Vuetify's internal theme
+      // Use our new DOM-based function instead of Vuetify's API
+      // which avoids "useTheme must be called from inside a setup function" error
+      applyThemeClasses(newTheme)
 
       // Update cookie
       if (preferredThemeCookie.value !== newTheme) {
         preferredThemeCookie.value = newTheme
       }
+
       // Update localStorage (client-side only)
       if (import.meta.client) {
         if (localStorage.getItem('preferredTheme') !== newTheme) {
@@ -210,7 +330,7 @@ export const useAppTheme = () => {
       }
     },
     { immediate: false }
-  ) // Initial set is handled by ref initialization and onMounted logic.
+  ) // Initial set is handled by ref initialization and initializeTheme logic.
 
   const toggleTheme = () => {
     currentTheme.value =
@@ -230,36 +350,110 @@ export const useAppTheme = () => {
     userId: string,
     isAnon: boolean
   ) => {
-    if (!$firebaseFirestore || !userId) return false
+    if (!userId) return false
+
+    let firestoreSuccess = true
+    let claimSuccess = true
     isLoading.value = true
+
+    // Debug: Log when saveThemePreference is called
+    console.log(
+      `saveThemePreference called: theme=${theme}, userId=${userId}, isAnon=${isAnon}`
+    )
+
     try {
-      // Use the correct collection based on user type
-      const collectionName = isAnon ? 'anonUsers' : 'users'
-      const userRef = doc($firebaseFirestore, collectionName, userId)
+      // Continue saving to Firestore as before
+      if ($firebaseFirestore) {
+        // Use the correct collection based on user type
+        const collectionName = isAnon ? 'anonUsers' : 'users'
+        const userRef = doc($firebaseFirestore, collectionName, userId)
 
-      console.log(
-        `Saving theme preference "${theme}" to ${collectionName}/${userId}`
-      )
+        console.log(
+          `Saving theme preference "${theme}" to ${collectionName}/${userId}`
+        )
 
-      // Save both the theme name and isDark status
-      const themeData = {
-        theme: theme,
-        isDarkMode: theme === 'wireframeDark',
-        themeUpdatedAt: new Date(),
+        // Save both the theme name and isDark status
+        const themeData = {
+          theme: theme,
+          isDarkMode: theme === 'wireframeDark',
+          themeUpdatedAt: new Date(),
+        }
+
+        await updateDoc(userRef, themeData).catch(async (err) => {
+          if (err.code === 'not-found') {
+            await setDoc(userRef, {
+              ...themeData,
+              isAnonymous: isAnon,
+              uid: userId,
+            })
+          } else {
+            throw err
+          }
+        })
       }
 
-      await updateDoc(userRef, themeData).catch(async (err) => {
-        if (err.code === 'not-found') {
-          await setDoc(userRef, {
-            ...themeData,
-            isAnonymous: isAnon,
-            uid: userId,
+      // Skip setting auth claims for anonymous users since they don't persist
+      if (!isAnon) {
+        // Add the theme to Firebase Auth custom claims for SSR
+        console.log(`Attempting to call set-theme-claim API for user ${userId}`)
+        try {
+          const response = await fetch('/api/set-theme-claim', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              uid: userId,
+              isDark: theme === 'wireframeDark',
+              isAnonymous: isAnon,
+            }),
           })
-        } else {
-          throw err
+
+          const result = await response.json()
+          console.log(`set-theme-claim API response:`, result)
+
+          if (!result.success) {
+            console.warn('Failed to set theme claim:', result.error)
+            claimSuccess = false
+          }
+        } catch (claimError) {
+          console.error('Error setting theme claim:', claimError)
+          claimSuccess = false
         }
-      })
-      return true
+      } else {
+        // For anonymous users, also call the API but with isAnonymous flag
+        console.log(`Calling set-theme-claim API for anonymous user ${userId}`)
+        try {
+          const response = await fetch('/api/set-theme-claim', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              uid: userId,
+              isDark: theme === 'wireframeDark',
+              isAnonymous: true,
+            }),
+          })
+
+          const result = await response.json()
+          console.log(
+            `set-theme-claim API response for anonymous user:`,
+            result
+          )
+
+          if (!result.success) {
+            console.warn(
+              'Failed to set theme for anonymous user:',
+              result.error
+            )
+            claimSuccess = false
+          }
+        } catch (claimError) {
+          console.error('Error setting theme for anonymous user:', claimError)
+          claimSuccess = false
+        }
+      }
     } catch (error) {
       console.error('Error saving theme preference:', error)
       firestoreError.value = true
@@ -279,6 +473,7 @@ export const useAppTheme = () => {
 
       console.log(`Loading theme preference from ${collectionName}/${userId}`)
 
+      // First get the current value immediately
       const docSnap = await getDoc(userRef)
       if (docSnap.exists()) {
         const userData = docSnap.data()
@@ -291,6 +486,41 @@ export const useAppTheme = () => {
             currentTheme.value = userData.theme // This will trigger watcher
           }
         }
+      }
+
+      // Then set up a real-time listener for future changes
+      const unsubscribe = onSnapshot(
+        userRef,
+        (doc) => {
+          if (doc.exists()) {
+            const userData = doc.data()
+            if (
+              userData?.theme &&
+              (userData.theme === 'wireframe' ||
+                userData.theme === 'wireframeDark')
+            ) {
+              console.log(`Real-time theme update: ${userData.theme}`)
+              if (currentTheme.value !== userData.theme) {
+                currentTheme.value = userData.theme // This will trigger watcher
+              }
+            }
+          }
+        },
+        (error) => {
+          console.error('Error in theme snapshot listener:', error)
+          firestoreError.value = true
+        }
+      )
+
+      // Store the unsubscribe function to clean up the listener when needed
+      if (import.meta.client) {
+        // Add to the cleanup list
+        if (!window._themeSnapshotUnsubscribe) {
+          window._themeSnapshotUnsubscribe = []
+        }
+        // Clean up any previous listener for this user
+        window._themeSnapshotUnsubscribe.forEach((fn) => fn())
+        window._themeSnapshotUnsubscribe = [unsubscribe]
       }
     } catch (error) {
       console.error('Error loading theme preference:', error)
@@ -307,5 +537,6 @@ export const useAppTheme = () => {
     isAuthReady,
     toggleTheme,
     setTheme,
+    initializeTheme, // Export the initialization function
   }
 }

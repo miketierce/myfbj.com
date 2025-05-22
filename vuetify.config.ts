@@ -135,6 +135,7 @@ export const vuetifyConfig = {
       style: `
         font-family: 'Courier New', monospace !important;
         border-radius: 0 !important;
+        margin-top: 1em;
       `,
     },
     VSelect: {
@@ -397,5 +398,9 @@ html.dark-theme body {
 .nuxt-content code {
   background-color: rgb(var(--v-theme-surface));
   border: 1px dashed rgb(var(--v-theme-primary));
+}
+h2 {
+  margin-top: .5em;
+  margin-bottom: .75em;
 }
 `

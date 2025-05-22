@@ -1,6 +1,6 @@
 <template>
-  <v-app :theme="currentTheme" class="app-wrapper">
-    <div class="app-layout">
+  <v-app :theme="themeForRendering" class="app-wrapper" :data-theme="themeForRendering">
+    <v-main class="app-layout">
       <header class="app-header">
         <div class="header-content">
           <!-- Logo placeholder on the left -->
@@ -21,10 +21,10 @@
               <v-btn
                 icon
                 variant="text"
-                :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
-                @click="toggleTheme"
+                :title="isDarkTheme ? 'Switch to light theme' : 'Switch to dark theme'"
+                @click="toggleAppTheme"
               >
-                <i :class="isDark ? 'fas fa-sun' : 'fas fa-moon'" />
+                <i :class="isDarkTheme ? 'fas fa-sun' : 'fas fa-moon'" />
               </v-btn>
               <template #fallback>
                 <!-- Fallback for SSR: a simple disabled button or placeholder -->
@@ -84,7 +84,7 @@
                       <!-- Theme selection -->
                       <div class="theme-selector">
                         <v-select
-                          v-model="currentTheme"
+                          v-model="currentThemeValue"
                           label="Theme"
                           :items="[
                             { title: 'Light', value: 'wireframe' },
@@ -92,6 +92,7 @@
                           ]"
                           variant="outlined"
                           density="compact"
+                          @update:model-value="setAppTheme"
                         />
                       </div>
 
@@ -135,7 +136,7 @@
 
                         <div class="theme-selector">
                           <v-select
-                            v-model="currentTheme"
+                            v-model="currentThemeValue"
                             label="Theme"
                             :items="[
                               { title: 'Light', value: 'wireframe' },
@@ -143,6 +144,7 @@
                             ]"
                             variant="outlined"
                             density="compact"
+                            @update:model-value="setAppTheme"
                           />
                         </div>
 
@@ -218,29 +220,61 @@
       >
         Login link sent to your email. Please check your inbox.
       </v-snackbar>
-    </div>
+    </v-main>
   </v-app>
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, onBeforeMount } from 'vue';
+import { computed, ref, watch, onMounted, useSSRContext } from 'vue';
+import { themeState } from '~/plugins/theme-state';
 import { useAppTheme } from '~/composables/useTheme';
 import { useAuth } from '~/composables/useAuth';
-import { useHead } from '#app';
+import { useHead, useRequestEvent } from '#app';
 
-// Theme management from composable
-const { currentTheme, isDark, toggleTheme, isLoading: themeLoading } = useAppTheme();
+// Get SSR context and event for theme detection
+const ssrContext = import.meta.server ? useSSRContext() : null;
+const event = useRequestEvent();
+
+// Get the server-provided theme if available
+const serverTheme = event?.context?.theme;
+
+// Use the global theme state directly for maximum consistency
+// This ensures consistent theme behavior across the entire application
+const isDarkTheme = computed(() => themeState.isDark);
+const currentThemeValue = computed(() => themeState.currentTheme);
+
+// Get theme utilities from our composable
+const { initializeTheme, toggleTheme, setTheme } = useAppTheme();
+
+// Make sure we always have a theme value for rendering
+// Use the server theme for SSR hydration to prevent mismatches
+const themeForRendering = computed(() => {
+  if (import.meta.server && serverTheme) {
+    return serverTheme; // Use server-determined theme during SSR
+  }
+  return currentThemeValue.value || (isDarkTheme.value ? 'wireframeDark' : 'wireframe');
+});
+
+// Use these methods to modify the theme
+const toggleAppTheme = () => themeState.toggleTheme();
+const setAppTheme = (theme) => themeState.setTheme(theme);
 
 // Enhanced head management for SSR theme consistency
-useHead(computed(() => ({
-  htmlAttrs: {
-    class: [
-      currentTheme.value === 'wireframeDark' ? 'dark-theme' : 'light-theme',
-      currentTheme.value === 'wireframeDark' ? 'v-theme--wireframeDark' : 'v-theme--wireframe',
-      themeLoading.value ? 'theme-initializing' : ''
-    ]
-  }
-})));
+useHead(computed(() => {
+  // During SSR, use the server-detected theme to avoid hydration mismatches
+  const isDark = import.meta.server && serverTheme
+    ? serverTheme === 'wireframeDark'
+    : isDarkTheme.value;
+
+  return {
+    htmlAttrs: {
+      class: [
+
+        isDark ? 'v-theme--wireframeDark' : 'v-theme--wireframe'
+      ]
+    }
+  };
+}));
 
 // Auth management
 const { user, isLoading: isAuthLoading, error, sendSignInLink, signInAnonymousUser, signOutUser, convertAnonymousToEmailLink, firestoreDisabled } = useAuth();
@@ -280,22 +314,31 @@ watch(() => user.value, (newUser, oldUser) => {
       // Update stored state
       lastStoredAuthState.value = false
     } else if (!newUser && lastStoredAuthState.value) { // Explicitly handle logout or session loss
-        const hadAuth = localStorage.getItem('hadAuthSession') === 'true';
-        if (hadAuth) {
-            recoveryEmail.value = localStorage.getItem('authEmail') || '';
-            showSessionRecovery.value = true;
-        }
-        lastStoredAuthState.value = false;
+      const hadAuth = localStorage.getItem('hadAuthSession') === 'true';
+      if (hadAuth) {
+        recoveryEmail.value = localStorage.getItem('authEmail') || '';
+        showSessionRecovery.value = true;
+      }
+      lastStoredAuthState.value = false;
     }
   }
 })
 
-// Initialize stored auth state on component mount
+// Initialize the theme when the component is mounted
 onMounted(() => {
+  // Initialize with the server-provided theme if available to prevent hydration mismatch
+  if (serverTheme && themeState && themeState.currentTheme !== serverTheme) {
+    // Sync the client state with what the server rendered
+    setTheme(serverTheme);
+  } else {
+    // Fallback to normal initialization
+    initializeTheme();
+  }
+
   if (import.meta.client) {
     // Check if we're coming from a magic link authentication flow
     const isFromMagicLink = window.location.href.includes('apiKey=') ||
-                            window.location.href.includes('mode=');
+                           window.location.href.includes('mode=');
 
     // Only set lastStoredAuthState if we're not in a magic link flow
     if (!isFromMagicLink) {
@@ -306,160 +349,18 @@ onMounted(() => {
     if (firestoreDisabled.value && lastStoredAuthState.value && !isFromMagicLink) {
       // Add a slightly longer delay to allow auth to complete
       setTimeout(() => {
-        // Double-check we're still not authenticated before showing dialog
+        // Double-check we're still not authenticated
         if (!user.value || user.value.isAnonymous) {
+          // Show recovery dialog
           recoveryEmail.value = localStorage.getItem('authEmail') || '';
           showSessionRecovery.value = true;
         }
-      }, 2000); // Increased from 1000ms to 2000ms
+      }, 2000);
     }
   }
 })
-
-// Handle login form submission
-const handleLogin = async () => {
-  if (!email.value) return
-
-  let success
-
-  if (user.value && user.value.isAnonymous) {
-    // If user is anonymous, convert to email auth
-    success = await convertAnonymousToEmailLink(email.value)
-  } else {
-    // Otherwise regular email link sign in
-    success = await sendSignInLink(email.value)
-  }
-
-  if (success) {
-    showLoginSuccess.value = true
-    userMenuOpen.value = false
-    email.value = ''
-  }
-}
-
-// Handle re-login from session recovery
-const handleReLogin = async () => {
-  if (!recoveryEmail.value) return
-
-  const success = await sendSignInLink(recoveryEmail.value)
-
-  if (success) {
-    showLoginSuccess.value = true
-    showSessionRecovery.value = false
-    recoveryEmail.value = ''
-  }
-}
-
-// Login anonymously
-const loginAnonymously = async () => {
-  await signInAnonymousUser()
-  userMenuOpen.value = false
-}
 </script>
 
-<style scoped>
-.app-wrapper {
-  min-height: 100vh;
-  overflow: hidden;
-  background-color: rgb(var(--v-theme-background-rgb)) !important;
-}
-
-.app-layout {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background-color: rgb(var(--v-theme-background-rgb));
-  color: rgb(var(--v-theme-on-background-rgb));
-}
-
-.app-header {
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-}
-
-.header-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.logo-container {
-  flex-shrink: 0;
-}
-
-.logo-placeholder {
-  width: 80px;
-  height: 40px;
-  border: 1px dashed #000000; /* Default for light theme */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
-}
-
-html.dark-theme .logo-placeholder {
-  border-color: #ffffff;
-}
-
-.spacer {
-  flex-grow: 1;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.user-menu {
-  position: relative;
-}
-
-.user-btn {
-  min-width: 120px;
-}
-
-.main-content {
-  flex-grow: 1;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 1rem;
-}
-
-.error-message {
-  color: #cc0000; /* Default for light theme */
-  font-size: 0.875rem;
-}
-
-html.dark-theme .error-message {
-  color: #ff9999;
-}
-
-.theme-selector {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-}
-
-.user-info {
-  margin-bottom: 1rem;
-}
-
-.notification-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #f44336; /* This color is theme-agnostic, so no change needed */
-  border-radius: 50%;
-  display: inline-block;
-  margin-left: 4px;
-}
-
-.status-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+<style>
+/* Add any component-specific styles here */
 </style>

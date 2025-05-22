@@ -40,6 +40,7 @@ const aliases = {
   delimiter: 'fas fa-circle',
   sort: 'fas fa-sort-up',
   expand: 'fas fa-chevron-down',
+  expanded: 'fas fa-chevron-up',
   menu: 'fas fa-bars',
   subgroup: 'fas fa-caret-down',
   dropdown: 'fas fa-caret-down',

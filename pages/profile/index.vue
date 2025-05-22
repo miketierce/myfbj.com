@@ -139,7 +139,7 @@
           </v-btn>
 
           <!-- Debug info (collapsible) -->
-          <v-expansion-panels class="mt-6" variant="accordion">
+          <!-- <v-expansion-panels class="mt-6" variant="accordion">
             <v-expansion-panel title="Diagnostic Information">
               <v-expansion-panel-text>
                 <div class="debug-info">
@@ -152,7 +152,7 @@
                 </div>
               </v-expansion-panel-text>
             </v-expansion-panel>
-          </v-expansion-panels>
+          </v-expansion-panels> -->
         </v-col>
 
         <!-- Right panel with content -->
@@ -284,7 +284,7 @@
                       rounded
                       size="42"
                     >
-                      <v-icon :icon="isDark ? 'fas fa-moon' : 'fas fa-sun'" />
+                      <v-icon :icon="isDarkTheme ? 'fas fa-moon' : 'fas fa-sun'" />
                     </v-avatar>
                   </div>
                 </v-card-title>
@@ -296,8 +296,8 @@
                         <div class="current-theme">
                           <p class="mb-2">Current theme:</p>
                           <v-chip color="primary" size="large" variant="elevated">
-                            <v-icon :icon="isDark ? 'fas fa-moon' : 'fas fa-sun'" start />
-                            {{ isDark ? 'Dark' : 'Light' }} Mode
+                            <v-icon :icon="isDarkTheme ? 'fas fa-moon' : 'fas fa-sun'" start />
+                            {{ isDarkTheme ? 'Dark' : 'Light' }} Mode
                           </v-chip>
                         </div>
                       </v-col>
@@ -305,20 +305,27 @@
                         <v-btn
                           size="large"
                           block
-                          :color="isDark ? 'warning' : 'primary'"
-                          :prepend-icon="isDark ? 'fas fa-sun' : 'fas fa-moon'"
-                          @click="toggleTheme"
+                          :color="isDarkTheme ? 'warning' : 'primary'"
+                          :prepend-icon="isDarkTheme ? 'fas fa-sun' : 'fas fa-moon'"
+                          @click="toggleAppTheme"
                           class="theme-toggle-btn"
                         >
-                          Switch to {{ isDark ? 'Light' : 'Dark' }} Theme
+                          Switch to {{ isDarkTheme ? 'Light' : 'Dark' }} Theme
                         </v-btn>
                       </v-col>
                     </v-row>
 
                     <v-row>
                       <v-col cols="12" sm="6">
-                        <v-card variant="outlined" class="theme-preview light-theme">
-                          <v-card-title class="text-center">Light Theme</v-card-title>
+                        <v-card
+                          :variant="!isDarkTheme ? 'elevated' : 'outlined'"
+                          :class="['theme-preview', 'light-theme', {'selected-theme': !isDarkTheme}]"
+                          :color="!isDarkTheme ? 'surface-variant' : undefined"
+                        >
+                          <v-card-title class="text-center">
+                            Light Theme
+                            <v-icon v-if="!isDarkTheme" icon="fas fa-check-circle" color="success" class="ms-2" />
+                          </v-card-title>
                           <v-card-text class="d-flex flex-column align-center">
                             <div class="theme-color-swatches light">
                               <div class="color-swatch primary"></div>
@@ -328,20 +335,28 @@
                               <div class="color-swatch success"></div>
                             </div>
                             <v-btn
-                              variant="outlined"
+                              :variant="isDarkTheme ? 'outlined' : 'elevated'"
                               size="small"
                               class="mt-4"
-                              :disabled="!isDark"
-                              @click="setTheme('wireframe')"
+                              :disabled="!isDarkTheme"
+                              :color="!isDarkTheme ? 'success' : undefined"
+                              @click="setAppTheme('wireframe')"
                             >
-                              Apply
+                              {{ !isDarkTheme ? 'Currently Active' : 'Apply' }}
                             </v-btn>
                           </v-card-text>
                         </v-card>
                       </v-col>
                       <v-col cols="12" sm="6">
-                        <v-card variant="outlined" class="theme-preview dark-theme">
-                          <v-card-title class="text-center">Dark Theme</v-card-title>
+                        <v-card
+                          :variant="isDarkTheme ? 'elevated' : 'outlined'"
+                          :class="['theme-preview', 'dark-theme', {'selected-theme': isDarkTheme}]"
+                          :color="isDarkTheme ? 'surface-variant' : undefined"
+                        >
+                          <v-card-title class="text-center">
+                            Dark Theme
+                            <v-icon v-if="isDarkTheme" icon="fas fa-check-circle" color="success" class="ms-2" />
+                          </v-card-title>
                           <v-card-text class="d-flex flex-column align-center">
                             <div class="theme-color-swatches dark">
                               <div class="color-swatch primary"></div>
@@ -351,18 +366,36 @@
                               <div class="color-swatch success"></div>
                             </div>
                             <v-btn
-                              variant="outlined"
+                              :variant="!isDarkTheme ? 'outlined' : 'elevated'"
                               size="small"
                               class="mt-4"
-                              :disabled="isDark"
-                              @click="setTheme('wireframeDark')"
+                              :disabled="isDarkTheme"
+                              :color="isDarkTheme ? 'success' : undefined"
+                              @click="setAppTheme('wireframeDark')"
                             >
-                              Apply
+                              {{ isDarkTheme ? 'Currently Active' : 'Apply' }}
                             </v-btn>
                           </v-card-text>
                         </v-card>
                       </v-col>
                     </v-row>
+
+                    <v-alert
+                      v-if="successMessage === 'Theme updated successfully'"
+                      type="success"
+                      variant="tonal"
+                      class="mt-4"
+                      density="compact"
+                      icon="fas fa-check-circle"
+                    >
+                      Theme updated successfully
+                    </v-alert>
+
+                    <!-- Show theme state debugging info in development mode -->
+                    <pre v-if="isDevelopment" class="mt-6 pa-2" style="background: #f5f5f5; border-radius: 4px;">
+                      Current theme: {{ currentThemeValue }}
+                      isDarkTheme: {{ isDarkTheme }}
+                    </pre>
                   </div>
                 </v-card-text>
               </v-card>
@@ -520,14 +553,23 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, reactive } from 'vue';
 import { useAuth } from '../../composables/useAuth';
-import { useAppTheme } from '../../composables/useTheme';
+import { themeState } from '~/plugins/theme-state';
 import { useProfileGallery } from '~/composables/forms/useProfileGallery';
 import UserSettingsForm from '~/components/forms/UserSettingsForm.vue';
 import ImageGalleryUpload from '~/components/forms/ImageGalleryUpload.vue';
 
 // Auth management and user data
 const { user, isLoading: isAuthLoading, error: authError, convertAnonymousToEmailLink, signOutUser, getUserData, updateUserProfile, firestoreDisabled } = useAuth();
-const { currentTheme, isDark, toggleTheme, setTheme } = useAppTheme();
+
+// Use the global theme state directly for maximum consistency
+// This ensures theme changes from anywhere in the app (including app bar) are reflected here
+const isDarkTheme = computed(() => themeState.isDark);
+const currentThemeValue = computed(() => themeState.currentTheme);
+const isDevelopment = computed(() => process.dev);
+
+// Methods to modify the theme
+const toggleAppTheme = () => themeState.toggleTheme();
+const setAppTheme = (theme) => themeState.setTheme(theme);
 
 const router = useRouter();
 const route = useRoute();
@@ -801,5 +843,11 @@ useHead({
 .error {
   color: var(--v-error-base);
   font-weight: 500;
+}
+
+/* Selected theme indicator */
+.selected-theme {
+  border: 2px solid var(--v-primary-base);
+  border-radius: 8px;
 }
 </style>

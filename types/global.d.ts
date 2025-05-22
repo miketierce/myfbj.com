@@ -2,6 +2,7 @@
 interface Window {
   // Flag to track if VueFire has been detected
   __VUEFIRE_DETECTED__?: boolean
+  _themeSnapshotUnsubscribe?: Array<() => void>
 }
 
 // Extend process type

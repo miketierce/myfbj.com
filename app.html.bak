@@ -35,34 +35,34 @@
 
           // Apply theme classes - both the HTML class system AND Vuetify's class system
           if (theme === 'wireframeDark') {
-            document.documentElement.classList.add('dark-theme');
+            // document.documentElement.classList.add('dark-theme');
             document.documentElement.classList.add('v-theme--wireframeDark');
-            document.documentElement.classList.remove('light-theme');
+            // document.documentElement.classList.remove('light-theme');
             document.documentElement.classList.remove('v-theme--wireframe');
             // Apply background color directly to body as early as possible
-            document.addEventListener('DOMContentLoaded', function() {
-              document.body.style.backgroundColor = '#121212';
-            });
+            // document.addEventListener('DOMContentLoaded', function() {
+            //   document.body.style.backgroundColor = '#121212';
+            // });
           } else {
-            document.documentElement.classList.add('light-theme');
+            // document.documentElement.classList.add('light-theme');
             document.documentElement.classList.add('v-theme--wireframe');
-            document.documentElement.classList.remove('dark-theme');
+            // document.documentElement.classList.remove('dark-theme');
             document.documentElement.classList.remove('v-theme--wireframeDark');
             // Apply background color directly to body as early as possible
-            document.addEventListener('DOMContentLoaded', function() {
-              document.body.style.backgroundColor = '#FFFFFF';
-            });
+            // document.addEventListener('DOMContentLoaded', function() {
+            //   document.body.style.backgroundColor = '#FFFFFF';
+            // });
           }
         } catch (e) {
           console.error('Theme initialization error:', e);
           // Fallback if script fails, default to light theme
-          document.documentElement.classList.add('light-theme');
+          // document.documentElement.classList.add('light-theme');
           document.documentElement.classList.add('v-theme--wireframe');
-          document.documentElement.classList.remove('dark-theme');
+          // document.documentElement.classList.remove('dark-theme');
           document.documentElement.classList.remove('v-theme--wireframeDark');
-          document.addEventListener('DOMContentLoaded', function() {
-            document.body.style.backgroundColor = '#FFFFFF';
-          });
+          // document.addEventListener('DOMContentLoaded', function() {
+          //   document.body.style.backgroundColor = '#FFFFFF';
+          // });
         } finally {
           // Always remove initializing class once theme is determined
           document.documentElement.classList.remove('theme-initializing');
