@@ -485,11 +485,79 @@ This project is configured to use Firebase Gen2 functions for enhanced performan
 }
 ```
 
+## Deployment Options
+
+### Local Development with Emulators
+
+For local development without deploying to Firebase, you can use Firebase emulators which simulate Firebase services locally:
+
+```bash
+# Start Firebase emulators with data persistence
+pnpm emulators
+
+# Start both Firebase emulators and Nuxt dev server
+pnpm dev:emulators
+```
+
+The emulators will save their state between restarts in the `.firebase-emulator-data` directory.
+
+### Branch-specific Preview Deployments
+
+For testing branches in a live environment without affecting production, use Firebase Hosting preview channels:
+
+```bash
+# Deploy current branch to a preview channel (using current Firebase project)
+pnpm deploy:preview
+
+# Deploy current branch to a preview channel using the dev project
+pnpm deploy:preview:dev
+
+# Get the URL of your preview deployment
+pnpm save:preview-url
+```
+
+Preview deployments will:
+- Create a unique URL based on your branch name
+- Share the same Firebase project (but won't affect the live site)
+- Automatically expire after 7 days (configurable in the script)
+- Allow you to share a working version with teammates for review
+
+Example preview URL format: `https://your-branch-name--your-firebase-project.web.app`
+
+### Manual Preview Channel Management
+
+You can also manage preview channels directly:
+
+```bash
+# List all active preview channels
+firebase hosting:channel:list
+
+# Delete a specific preview channel
+firebase hosting:channel:delete CHANNEL_ID
+
+# Open the preview URL in your browser
+firebase hosting:channel:open CHANNEL_ID
+```
+
+### Production Deployment
+
+For production deployment, continue using:
+
+```bash
+# Build and deploy to production
+pnpm deploy
+
+# Build, configure CORS, and deploy to production
+pnpm deploy:with-cors
+```
+
 ## CI/CD with GitHub Actions
 
 This project includes a GitHub Actions workflow for automatic deployment to Firebase. The workflow:
 
-1. Builds and deploys on pushes to `master`/`main` (production) and `dev`/`development` branches
+1. Builds and deploys on **all branch pushes** using appropriate environment variables:
+   - **Production environment**: Used for pushes to `master`/`main` branches
+   - **Development environment**: Used for pushes to all other branches (including `dev`/`development`)
 2. Runs checks on pull requests to the main branches
 3. Uses different environment variables and Firebase projects for production vs. development
 4. Properly configures Node.js 18 for compatibility with Firebase Gen2 functions

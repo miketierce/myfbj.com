@@ -19,7 +19,12 @@
     "postinstall": "nuxt prepare",
     "config:cors": "node scripts/configure-storage-cors.js",
     "deploy": "nuxt build && firebase deploy",
-    "deploy:with-cors": "nuxt build && node scripts/configure-storage-cors.js && firebase deploy"
+    "deploy:with-cors": "nuxt build && node scripts/configure-storage-cors.js && firebase deploy",
+    "deploy:preview": "NITRO_PRESET=firebase nuxt build && firebase hosting:channel:deploy $(git rev-parse --abbrev-ref HEAD) --expires 7d",
+    "deploy:preview:dev": "dotenv -c dev NITRO_PRESET=firebase nuxt build && firebase use dev && firebase hosting:channel:deploy $(git rev-parse --abbrev-ref HEAD) --expires 7d",
+    "emulators": "firebase emulators:start --import=./.firebase-emulator-data --export-on-exit",
+    "dev:emulators": "firebase emulators:start --import=./.firebase-emulator-data --export-on-exit & dotenv -c dev FIREBASE_USE_EMULATOR=true nuxt dev",
+    "save:preview-url": "node -e \"const branchName = require('child_process').execSync('git rev-parse --abbrev-ref HEAD', {encoding: 'utf8'}).trim(); console.log('Preview URL: https://'+branchName+'--'+require('./firebase.json').hosting.site+'.web.app');\""
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",

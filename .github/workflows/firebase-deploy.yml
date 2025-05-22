@@ -7,6 +7,7 @@ on:
       - main
       - dev
       - development
+      - '*' # Allow any branch
   pull_request:
     branches:
       - master
@@ -197,7 +198,7 @@ jobs:
         # Using v13.0.2 which is the latest version compatible with Node.js 18
 
       - name: Deploy to Firebase
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/development')
+        if: github.event_name == 'push'
         run: |
           export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
 
