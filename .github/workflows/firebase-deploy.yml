@@ -133,7 +133,8 @@ jobs:
       - name: Setup FontAwesome
         run: |
           # Configure npm for FontAwesome authenticated access
-          echo "@fortawesome:registry=https://npm.fontawesome.com/" > .npmrc
+          echo "@awesome.me:registry=https://npm.fontawesome.com/" > .npmrc
+          echo "@fortawesome:registry=https://npm.fontawesome.com/" >> .npmrc
           echo "//npm.fontawesome.com/:_authToken=${{ secrets.FONTAWESOME_TOKEN }}" >> .npmrc
           echo "Created FontAwesome npm configuration"
 
@@ -238,6 +239,9 @@ jobs:
           # Deploy each component separately to isolate any issues
           echo "Deploying Firestore rules and indexes..."
           firebase deploy --only firestore --project $project_id --non-interactive || echo "Firestore rules deployment failed, will try to continue with the rest"
+
+          echo "Deploying Storage rules..."
+          firebase deploy --only storage --project $project_id --non-interactive || echo "Storage rules deployment failed, will try to continue with the rest"
 
           echo "Deploying hosting..."
           firebase deploy --only hosting --project $project_id --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
