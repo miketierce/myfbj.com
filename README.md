@@ -216,6 +216,31 @@ After creating a new project from the template, you should:
 3. Update environment variables in `.env` files (see below)
 4. Modify the README to reflect your project's specific details
 
+## Development Setup
+
+### FontAwesome Pro Setup
+
+This project uses FontAwesome Pro. To install dependencies properly, you need to configure npm/pnpm with your FontAwesome authentication token:
+
+1. Copy the template `.npmrc.example` file to `.npmrc`:
+   ```bash
+   cp .npmrc.example .npmrc
+   ```
+
+2. Edit the `.npmrc` file and replace `YOUR_TOKEN` with your actual FontAwesome Pro token:
+   ```
+   @awesome.me:registry=https://npm.fontawesome.com/
+   @fortawesome:registry=https://npm.fontawesome.com/
+   //npm.fontawesome.com/:_authToken=YOUR_ACTUAL_TOKEN
+   ```
+
+3. Install dependencies:
+   ```bash
+   pnpm install
+   ```
+
+> **Note**: Your `.npmrc` file is git-ignored to prevent accidentally committing your authentication token. For CI/CD builds, the token is stored as a GitHub Secret (`FONTAWESOME_TOKEN`) and injected during the build process.
+
 ## Setup
 
 Make sure to install dependencies:

@@ -13,6 +13,9 @@ service-account.json
 .env.production.local
 .env.beta.local
 
+# NPM/PNPM config with auth tokens
+.npmrc
+
 # Firebase service account files
 service-account.json
 **/service-account.json
