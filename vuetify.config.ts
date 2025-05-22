@@ -365,11 +365,34 @@ html.dark-theme body {
   color: rgb(var(--v-theme-primary));
 }
 
-/* Dark mode specific text field label styling */
-.v-theme--wireframeDark .v-text-field .v-field-label--floating {
+/* Dark mode text field label styling for all input types */
+.v-theme--wireframeDark .v-field-label--floating {
   background-color: #121212 !important;
   padding: 0 4px !important;
   border-radius: 2px !important;
+  color: rgba(255, 255, 255, 0.7) !important; /* Ensure visibility against dark outlines */
+}
+
+/* Light mode text field label styling for all input types */
+.v-theme--wireframe .v-field-label--floating {
+  background-color: #FFFFFF !important;
+  padding: 0 4px !important;
+  border-radius: 2px !important;
+  color: rgba(0, 0, 0, 0.7) !important; /* Ensure visibility against light outlines */
+}
+
+/* Fix for active/focused field labels to use theme primary color */
+.v-field--focused .v-field-label--floating {
+  color: rgb(var(--v-theme-primary)) !important;
+  font-weight: 500 !important;
+}
+
+/* Fix for text field outline colors to match theme */
+.v-field.v-field--focused .v-field__outline__start,
+.v-field.v-field--focused .v-field__outline__notch,
+.v-field.v-field--focused .v-field__outline__end {
+  border-color: rgb(var(--v-theme-primary)) !important;
+  opacity: 1 !important;
 }
 
 /* Global text color classes that respond to theme changes */
