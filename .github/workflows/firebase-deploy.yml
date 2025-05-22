@@ -136,10 +136,39 @@ jobs:
           echo "@awesome.me:registry=https://npm.fontawesome.com/" > .npmrc
           echo "@fortawesome:registry=https://npm.fontawesome.com/" >> .npmrc
           echo "//npm.fontawesome.com/:_authToken=${{ secrets.FONTAWESOME_TOKEN }}" >> .npmrc
-          echo "Created FontAwesome npm configuration"
+
+          # Debug - Verify .npmrc content (without showing token)
+          echo "Verifying .npmrc configuration:"
+          cat .npmrc | sed 's/_authToken=.*/_authToken=***HIDDEN***/' || echo ".npmrc not found!"
+          echo "File permissions on .npmrc:"
+          ls -la .npmrc || echo "File not found"
+
+          # Ensure .npmrc is in the home directory as well (to catch alternate lookup paths)
+          echo "@awesome.me:registry=https://npm.fontawesome.com/" > ~/.npmrc
+          echo "@fortawesome:registry=https://npm.fontawesome.com/" >> ~/.npmrc
+          echo "//npm.fontawesome.com/:_authToken=${{ secrets.FONTAWESOME_TOKEN }}" >> ~/.npmrc
+
+          # Configure PNPM directly with the command-line tool
+          # This ensures the settings are applied regardless of config file location
+          pnpm config set @awesome.me:registry https://npm.fontawesome.com/
+          pnpm config set @fortawesome:registry https://npm.fontawesome.com/
+          pnpm config set //npm.fontawesome.com/:_authToken ${{ secrets.FONTAWESOME_TOKEN }}
+
+          # Verify PNPM configuration
+          echo "PNPM configuration verification:"
+          pnpm config get @fortawesome:registry || echo "PNPM config not set properly"
+
+          echo "Created FontAwesome npm configuration in all relevant locations"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Install FontAwesome packages explicitly
+        run: |
+          # Sometimes installing FontAwesome packages separately helps with authentication issues
+          echo "Installing FontAwesome packages separately..."
+          pnpm add @fortawesome/fontawesome-free || echo "Could not install @fortawesome/fontawesome-free"
+          echo "FontAwesome installation step complete"
 
       - name: Run linting
         run: pnpm lint || echo "Linting issues found - review output"
