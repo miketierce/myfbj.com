@@ -36,7 +36,7 @@
     <v-card v-if="isAuthenticated" class="pa-4 mb-4">
       <v-card-title>Test Form (VueFire Integration)</v-card-title>
       <v-card-subtitle>
-        This form demonstrates loading and saving data with VueFire integration
+        This form demonstrates loading and saving data with VueFire integration using the unified form system
       </v-card-subtitle>
 
       <v-card-text>
@@ -112,15 +112,15 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useVueFireForm } from '~/composables/forms/useVueFireForm'
-import { useFirestore, useDocument } from 'vuefire'
+// Replace useVueFireForm with useUnifiedForm
+import { useUnifiedForm } from '~/composables/forms'
+import { useDocument } from 'vuefire'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { doc } from 'firebase/firestore'
 import { useFirebaseApp } from '~/composables/utils/useFirebaseApp'
 
 // Get Firebase services
-const { auth } = useFirebaseApp()
-const firestore = useFirestore()
+const { auth, firestore } = useFirebaseApp()
 const user = computed(() => auth.currentUser)
 const isAuthenticated = computed(() => !!user.value)
 
@@ -141,7 +141,7 @@ const userDocRef = computed(() => {
 // Get raw data for display comparison
 const { data: rawData } = useDocument(userDocRef)
 
-// Use our VueFire Form
+// Use our new unified form system with VueFire mode
 const {
   formData,
   formErrors,
@@ -156,8 +156,9 @@ const {
   savingStatus,
   isDirty,
   changedFields
-} = useVueFireForm({
+} = useUnifiedForm({
   formId: 'profileTest',
+  mode: 'vuefire', // Explicitly setting mode to vuefire
   docRef: userDocRef.value,
   initialState: {
     displayName: '',
@@ -173,7 +174,6 @@ const {
     updatedAt: new Date(),
   }),
   createIfNotExists: true,
-  syncImmediately: false, // Only save on explicit actions
 })
 
 // Format saving status for UI

@@ -6,6 +6,8 @@ import { ref, computed, watch } from 'vue'
 import { doc } from 'firebase/firestore'
 import { useFirestore } from 'vuefire'
 import { useAuth } from '../useAuth'
+import { useUnifiedForm } from './useForm'
+import type { FormOptions, FormAPI } from './types'
 
 /**
  * Creates an authenticated form that safely handles auth state changes
@@ -97,5 +99,28 @@ export function createAuthenticatedForm<T>(options: {
     isAuthenticated: computed(
       () => !!user?.value?.uid && !user?.value?.isAnonymous
     ),
+  }
+}
+
+/**
+ * Legacy composable for authenticated forms - wraps useUnifiedForm with authentication
+ * @deprecated Use useProfileForm or useUserSettingsForm instead
+ */
+export function useAuthenticatedForm<T extends Record<string, any>>(
+  options: FormOptions<T>
+): FormAPI<T> {
+  // Get authentication state
+  const { user, isAuthenticated } = useAuth()
+
+  // Create form instance using unified form system
+  const form = useUnifiedForm<T>({
+    ...options,
+    // Add any auth-specific handling here
+  })
+
+  // Return form API with additional auth context
+  return {
+    ...form,
+    // Additional properties can be added here if needed
   }
 }

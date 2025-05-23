@@ -1,7 +1,8 @@
 // filepath: /home/mike/Documents/Code/new-nuxt/composables/forms/useVueFireProfileForm.ts
 import { computed } from 'vue'
 import { useVueFireForm } from './useVueFireForm'
-import { useAuth, useFirestore } from 'vuefire'
+import { useFirestore } from 'vuefire'
+import { useAuth } from '~/composables/useAuth'
 import { doc } from 'firebase/firestore'
 
 // Options interface for the profile form

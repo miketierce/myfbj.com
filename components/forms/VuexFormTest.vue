@@ -5,10 +5,10 @@
     <v-card class="pa-4 mb-4">
       <v-card-title>User Information</v-card-title>
       <v-card-text>
-        <div v-if="userStore.isAuthenticated">
-          <p><strong>User ID:</strong> {{ userStore.currentUser?.uid }}</p>
-          <p><strong>Email:</strong> {{ userStore.userEmail }}</p>
-          <p><strong>Display Name:</strong> {{ userStore.displayName }}</p>
+        <div v-if="isUserAuthenticated">
+          <p><strong>User ID:</strong> {{ currentUser?.uid }}</p>
+          <p><strong>Email:</strong> {{ currentUser?.email }}</p>
+          <p><strong>Display Name:</strong> {{ currentUser?.displayName }}</p>
         </div>
         <div v-else>
           <p>No user authenticated. Please sign in.</p>
@@ -34,42 +34,55 @@
       </v-card-text>
     </v-card>
 
-    <v-card v-if="userStore.isAuthenticated" class="pa-4 mb-4">
-      <v-card-title>Test Form (Vuex Integrated)</v-card-title>
+    <v-alert v-if="firestoreError" type="warning" class="mb-4">
+      <strong>Firestore Access Error:</strong> {{ firestoreError }}
+      <p class="mt-2">Using local form state instead. This is expected in test environments without proper Firestore permissions.</p>
+    </v-alert>
+
+    <v-card class="pa-4 mb-4">
+      <v-card-title>Test Form (Vuex Integration)</v-card-title>
+      <v-card-subtitle>
+        This form demonstrates loading and saving data with Vuex integration using the unified form system
+      </v-card-subtitle>
+
       <v-card-text>
-        <v-form @submit.prevent="handleSubmit">
+        <div v-if="isLoading" class="text-center py-4">
+          <v-progress-circular indeterminate color="primary"/>
+          <p class="mt-2">Loading form data...</p>
+        </div>
+
+        <v-form v-else @submit.prevent="handleSubmit">
           <v-text-field
-            v-model="formData.displayName"
-            label="Display Name"
-            :error-messages="formErrors.displayName"
-            @input="validateField('displayName')"
+            v-model="formData.title"
+            label="Title"
+            :error-messages="formErrors.title"
+            @input="validateField('title')"
           />
 
-          <v-text-field
-            v-model="formData.bio"
-            label="Bio"
-            :error-messages="formErrors.bio"
-            @input="validateField('bio')"
+          <v-textarea
+            v-model="formData.description"
+            label="Description"
+            :error-messages="formErrors.description"
+            @input="validateField('description')"
           />
 
           <v-select
-            v-model="formData.favoriteColor"
-            :items="['Red', 'Green', 'Blue', 'Yellow', 'Purple']"
-            label="Favorite Color"
-            :error-messages="formErrors.favoriteColor"
-            @change="validateField('favoriteColor')"
+            v-model="formData.priority"
+            :items="['low', 'medium', 'high']"
+            label="Priority"
+            :error-messages="formErrors.priority"
           />
 
           <div class="d-flex mt-4">
             <v-btn type="submit" color="primary" :loading="isSubmitting" class="mr-2">
-              Save Profile
+              Submit Form
             </v-btn>
             <v-btn color="secondary" @click="resetForm">
               Reset
             </v-btn>
           </div>
 
-          <div v-if="savingStatus" class="mt-2">
+          <div v-if="savingStatus?.value" class="mt-2">
             <v-alert :type="getSavingStatusType" dense>
               {{ getSavingStatusMessage }}
             </v-alert>
@@ -86,17 +99,10 @@
       </v-card-text>
     </v-card>
 
-    <v-card v-if="userStore.isAuthenticated" class="pa-4">
-      <v-card-title>VueFire Direct Integration Test</v-card-title>
+    <v-card class="pa-4">
+      <v-card-title>Form Data in Vuex Store</v-card-title>
       <v-card-text>
-        <p v-if="profileLoading">Loading profile data...</p>
-        <template v-else>
-          <p><strong>Profile ID:</strong> {{ profileRef?.id || 'N/A' }}</p>
-          <p><strong>Display Name (VueFire):</strong> {{ profile?.displayName || 'Not set' }}</p>
-          <p><strong>Bio (VueFire):</strong> {{ profile?.bio || 'Not set' }}</p>
-          <p><strong>Favorite Color (VueFire):</strong> {{ profile?.favoriteColor || 'Not set' }}</p>
-          <p><strong>Last Updated:</strong> {{ profile?.updatedAt ? new Date(profile.updatedAt.toDate()).toLocaleString() : 'Never' }}</p>
-        </template>
+        <pre class="code-block">{{ JSON.stringify(storeFormData, null, 2) }}</pre>
       </v-card-text>
     </v-card>
   </div>
@@ -104,53 +110,29 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useUnifiedForm } from '~/composables/forms'
 import { useNuxtApp } from '#app'
-import { useFirebaseApp } from '~/composables/utils/useFirebaseApp'
-import { useVuexForm } from '~/composables/forms/useVuexForm'
-import { useDocument, useFirestore } from 'vuefire'
-import { doc } from 'firebase/firestore'
 
 // Get Vuex store
 const { $store } = useNuxtApp()
 
-// Create convenience store references
-const userStore = {
-  isAuthenticated: computed(() => $store.getters['user/isAuthenticated']),
-  currentUser: computed(() => $store.getters['user/currentUser']),
-  userEmail: computed(() => $store.getters['user/userEmail']),
-  displayName: computed(() => $store.getters['user/displayName']),
-  authError: computed(() => $store.getters['user/authError']),
-}
-
-// Firebase services
-const { firestore } = useFirebaseApp()
-const vueFirestore = useFirestore()
-
-// Login form data
-const loginForm = ref({
-  email: '',
-  password: '',
-})
+// User authentication state
+const currentUser = computed(() => $store.state.user?.currentUser || null)
+const isUserAuthenticated = computed(() => !!currentUser.value)
+const loginForm = ref({ email: '', password: '' })
 const isSigningIn = ref(false)
 const authError = ref('')
 
-// Get Firestore document reference for user profile
-const userDocRef = computed(() => {
-  const userId = userStore.currentUser.value?.uid
-  if (!userId) return null
-  return doc(firestore, 'userProfiles', userId)
+// Flag for loading state and errors
+const isLoading = ref(true)
+const firestoreError = ref('')
+
+// Used for comparison in UI to show what's in the Vuex store
+const storeFormData = computed(() => {
+  return $store.state.forms.formData['vuexDemoForm'] || {}
 })
 
-// Set up direct VueFire binding to compare
-const profileRef = computed(() => {
-  const userId = userStore.currentUser.value?.uid
-  if (!userId) return null
-  return doc(vueFirestore, 'userProfiles', userId)
-})
-
-const { data: profile, pending: profileLoading } = useDocument(profileRef)
-
-// Use Vuex form for profile
+// Create form without Firestore integration first
 const {
   formData,
   formErrors,
@@ -158,47 +140,76 @@ const {
   successMessage,
   errorMessage,
   validateField,
+  validateAllFields,
   handleSubmit,
   resetForm,
+  updateField,
+  updateFields,
+  // The following props might be undefined since we're not using Firestore initially
   saveToFirestore,
   savingStatus,
-} = useVuexForm({
-  formId: 'profileTest',
-  useFirestore: true,
-  docRef: userDocRef.value,
+  isPendingSave,
+} = useUnifiedForm({
+  formId: 'vuexDemoForm',
+  mode: 'vuex',  // Explicitly use Vuex mode
   initialState: {
-    displayName: '',
-    bio: '',
-    favoriteColor: '',
+    title: '',
+    description: '',
+    priority: 'medium',
+    category: '',
+    completed: false,
+    tags: [],
   },
   validationRules: {
-    displayName: (value) => !!value || 'Display name is required',
-    bio: (value) => value.length <= 200 || 'Bio must be 200 characters or less',
+    title: (value) => !!value || 'Title is required',
+    description: (value) => value.length <= 500 || 'Description must be 500 characters or less',
   },
-  transformBeforeSave: (data) => ({
-    ...data,
-    lastSaved: new Date().toISOString(),
-  }),
 })
 
-// Format saving status for UI
+// Simulate loading state
+onMounted(() => {
+  // Simulate a loading delay then set initial data
+  setTimeout(() => {
+    isLoading.value = false
+
+    // Set some initial data for testing
+    updateFields({
+      title: 'Test Task',
+      description: 'This is a sample task for testing the Vuex form integration.',
+      priority: 'medium',
+    })
+
+    // Clear any previous form errors/messages
+    $store.commit('forms/SET_FORM_ERRORS', {})
+    $store.commit('forms/SET_ERROR_MESSAGE', null)
+    $store.commit('forms/SET_SUCCESS_MESSAGE', null)
+  }, 1000)
+})
+
+// Helper method to show status messages
 const getSavingStatusType = computed(() => {
-  switch (savingStatus.value) {
-    case 'saving': return 'info'
-    case 'saved': return 'success'
-    case 'error': return 'error'
-    default: return 'warning'
+  if (savingStatus?.value) {
+    switch (savingStatus.value) {
+      case 'saving': return 'info'
+      case 'saved': return 'success'
+      case 'error': return 'error'
+      default: return 'warning'
+    }
   }
+  return 'info'
 })
 
 const getSavingStatusMessage = computed(() => {
-  switch (savingStatus.value) {
-    case 'saving': return 'Saving changes...'
-    case 'saved': return 'Changes saved successfully'
-    case 'error': return 'Error saving changes'
-    case 'unsaved': return 'Changes have not been saved yet'
-    default: return 'Form state: ' + savingStatus.value
+  if (savingStatus?.value) {
+    switch (savingStatus.value) {
+      case 'saving': return 'Saving changes...'
+      case 'saved': return 'Changes saved successfully'
+      case 'error': return 'Error saving changes'
+      case 'unsaved': return 'Changes have not been saved yet'
+      default: return 'Form state: ' + savingStatus.value
+    }
   }
+  return 'Form ready'
 })
 
 // Authentication methods
@@ -220,14 +231,6 @@ const handleSignIn = async () => {
     isSigningIn.value = false
   }
 }
-
-// When component mounts, check if user is authenticated and load profile
-onMounted(async () => {
-  if (userStore.isAuthenticated.value && userDocRef.value) {
-    // Load profile data from Firestore
-    await saveToFirestore()
-  }
-})
 </script>
 
 <style scoped>
@@ -235,5 +238,14 @@ onMounted(async () => {
   max-width: 800px;
   margin: 0 auto;
   padding: 16px;
+}
+.code-block {
+  background: #f5f5f5;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 12px;
+  max-height: 300px;
+  overflow-y: auto;
 }
 </style>
