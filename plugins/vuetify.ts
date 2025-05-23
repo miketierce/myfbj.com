@@ -79,14 +79,11 @@ export default defineNuxtPlugin((nuxtApp: any) => {
 
       // Store the SSR theme decision in Nuxt payload to ensure client hydration matches
       nuxtApp.payload[SSR_THEME_KEY] = defaultTheme
-
-      console.log('SSR determined theme:', defaultTheme)
     }
   } else if (import.meta.client) {
     // On client side, first priority is the SSR payload for proper hydration
     if (nuxtApp.payload && nuxtApp.payload[SSR_THEME_KEY]) {
       defaultTheme = nuxtApp.payload[SSR_THEME_KEY]
-      console.log('Using SSR theme from payload:', defaultTheme)
     }
     // After hydration has completed, we can use localStorage preference
     else {

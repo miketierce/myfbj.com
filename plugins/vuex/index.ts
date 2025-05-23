@@ -8,11 +8,6 @@ export default defineNuxtPlugin({
   enforce: 'post',
   setup(nuxtApp) {
     // Log which environment we're in
-    console.log(
-      `[Vuex Plugin] Running in ${
-        process.client ? 'client' : 'server'
-      } environment`
-    )
 
     try {
       // Get existing Firebase instances without initializing new ones
@@ -29,9 +24,6 @@ export default defineNuxtPlugin({
       // Provide store to app - only if not already provided
       if (!nuxtApp.vueApp.config.globalProperties.$store) {
         nuxtApp.vueApp.config.globalProperties.$store = store
-        console.log('[Vuex Plugin] Store attached to globalProperties')
-      } else {
-        console.log('[Vuex Plugin] Store already attached to globalProperties')
       }
 
       // Provide via injection API - only if not already provided
@@ -40,7 +32,6 @@ export default defineNuxtPlugin({
 
       // Only initialize modules once - check if they're already initialized by looking at state
       if (!store.state.forms || !store.state.forms.initialized) {
-        console.log('[Vuex Plugin] Initializing forms module')
         store.dispatch('forms/initialize')
       }
 
@@ -63,13 +54,6 @@ export default defineNuxtPlugin({
 
       return { store }
     } catch (error) {
-      console.error('[Vuex Plugin] Error in Vuex plugin:', error.message)
-
-      // Create a basic store without Firebase services as fallback
-      console.log(
-        '[Vuex Plugin] Creating fallback store without Firebase services'
-      )
-
       const store = createStore({})
       nuxtApp.vueApp.config.globalProperties.$store = store
       nuxtApp.vueApp.provide('store', store)

@@ -152,9 +152,7 @@ const debouncedSave = debounce(async () => {
 
 // Handle changes in gallery data with auto-save
 const handleGalleryChange = () => {
-  console.log('Gallery updated, will auto-save:', localGalleryData.value);
   isDirty.value = true;
-
   // Trigger debounced save
   debouncedSave();
 };
@@ -182,7 +180,6 @@ const saveGallery = async () => {
 
   // Check auth state directly from useAuth()
   if (!user.value || authLoading.value) {
-    console.log('Waiting for authentication before saving gallery...');
     waitingForAuth.value = true;
     return;
   }
@@ -191,28 +188,14 @@ const saveGallery = async () => {
   error.value = '';
 
   try {
-    // Log auth state for debugging
-    console.log('Auth state during save:', {
-      hasUser: !!user.value,
-      userId: user.value?.uid,
-      isAnonymous: user.value?.isAnonymous,
-      vuexAuthenticated: isAuthenticated.value
-    });
-
     // Verify that store has authenticated user
     if (!isAuthenticated.value || !user.value?.uid) {
       // Try updating the auth state in Vuex first
-      console.log('Updating Vuex auth state before saving');
       await store.dispatch('user/onAuthStateChanged', user.value);
     }
 
     // Filter for public images only
     const publicImages = localGalleryData.value.images.filter(img => img.isPublic);
-
-    console.log('Auto-saving gallery with public images:', {
-      mainImageId: localGalleryData.value.mainImageId,
-      publicImageCount: publicImages.length
-    });
 
     // Update profile via Vuex action
     const result = await store.dispatch('user/savePublicGalleryImages', {

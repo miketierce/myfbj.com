@@ -62,12 +62,7 @@ export const useAuth = () => {
       try {
         // If this isn't the first attempt, wait with exponential backoff
         if (attempt > 0) {
-          const backoffDelay = initialDelay * Math.pow(2, attempt - 1) // Exponential backoff
-          console.log(
-            `Retrying Firestore operation, attempt ${
-              attempt + 1
-            }/${retries} after ${backoffDelay}ms delay`
-          )
+          const backoffDelay = initialDelay * Math.pow(2, attempt - 1)
           await new Promise((resolve) => setTimeout(resolve, backoffDelay))
         }
 
@@ -94,18 +89,12 @@ export const useAuth = () => {
               window.location.href.includes('mode='))
 
           if (isRecentEmailAuth) {
-            console.log(
-              'Recently authenticated via email link, continuing despite Firestore permission error'
-            )
             // Return null but don't sign out - email auth might just need time to propagate permissions
             return null
           }
 
           // For permission errors, we'll return null but NOT automatically sign out
           // or try to sign in anonymously. This prevents unexpected sign-outs.
-          console.log(
-            'Firestore permission denied. User may need to refresh token.'
-          )
 
           // Only refresh the token if we have a user (this won't sign them out)
           if (user.value && !lastTokenRefresh && auth?.currentUser) {
@@ -114,9 +103,7 @@ export const useAuth = () => {
               // Try to refresh token after a short delay
               setTimeout(async () => {
                 try {
-                  console.log('Attempting to refresh authentication token...')
                   await auth.currentUser?.getIdToken(true)
-                  console.log('Token refresh successful')
                   // Reset the Firestore disabled flag to allow retrying operations
                   firestoreDisabled.value = false
                 } catch (tokenErr) {
@@ -194,15 +181,9 @@ export const useAuth = () => {
         const userRef = doc(firestore, collection, userId)
         const userDoc = await getDoc(userRef)
 
-        console.log(
-          `Attempting to save data to ${collection}/${userId}:`,
-          userData
-        )
-
         if (userDoc.exists()) {
           // Update existing document
           await updateDoc(userRef, userData)
-          console.log(`Updated existing document in ${collection}/${userId}`)
         } else {
           // Create new document
           await setDoc(userRef, {
@@ -210,7 +191,6 @@ export const useAuth = () => {
             uid: userId,
             createdAt: new Date(),
           })
-          console.log(`Created new document in ${collection}/${userId}`)
         }
         return true
       })

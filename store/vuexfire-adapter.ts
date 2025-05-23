@@ -40,15 +40,8 @@ export const firestoreAction = (actionFunction: Function) => {
 
         // Override the original bindFirestoreRef with our patched version
         bindFirestoreRef: async (key: string, ref: any) => {
-          console.log(
-            `[VuexFire Adapter] Binding ${key} with Firebase v11 adapter`
-          )
-
           // Clean up any existing subscription
           if (unsubscribeFunctions.has(key)) {
-            console.log(
-              `[VuexFire Adapter] Cleaning up previous binding for ${key}`
-            )
             unsubscribeFunctions.get(key)?.()
             unsubscribeFunctions.delete(key)
           }
@@ -60,8 +53,6 @@ export const firestoreAction = (actionFunction: Function) => {
               typeof ref.path === 'string' &&
               ref.type === 'document'
             ) {
-              console.log(`[VuexFire Adapter] Document binding for ${key}`)
-
               // First get initial data
               const snapshot = await getDoc(ref)
               // Set initial data
@@ -126,8 +117,6 @@ export const firestoreAction = (actionFunction: Function) => {
               ref &&
               (ref.type === 'collection' || ref.type === 'query')
             ) {
-              console.log(`[VuexFire Adapter] Collection binding for ${key}`)
-
               // Set initial empty array if state doesn't have it
               if (!Array.isArray(context.state[key])) {
                 context.commit('vuexfire/VUEXFIRE_ARRAY_INITIALIZE', {
@@ -177,7 +166,6 @@ export const firestoreAction = (actionFunction: Function) => {
 
         // Override unbindFirestoreRef to properly clean up
         unbindFirestoreRef: (key: string) => {
-          console.log(`[VuexFire Adapter] Unbinding ${key}`)
           if (unsubscribeFunctions.has(key)) {
             unsubscribeFunctions.get(key)?.()
             unsubscribeFunctions.delete(key)

@@ -120,7 +120,6 @@ async function getProjectConfig() {
       console.warn('Could not determine project from Firebase CLI:', err.message);
     }
 
-    console.log('Using currently selected Firebase project...');
     return {};
   } catch (err) {
     console.warn('Error reading project config:', err.message);
@@ -180,7 +179,6 @@ function configureCors(configFilePath, projectId) {
         // If projectId is available, try to construct the default bucket name
         if (projectId) {
           bucket = `${projectId}.appspot.com`;
-          console.log(`Assuming default bucket name: ${bucket}`);
         } else {
           // Fall back to using gsutil to list buckets
           const gsutilBuckets = execSync('gsutil ls', { encoding: 'utf8' }).trim().split('\n');
@@ -197,23 +195,18 @@ function configureCors(configFilePath, projectId) {
       throw new Error('No storage bucket found');
     }
 
-    console.log(`Configuring CORS for bucket: ${bucket}`);
-
     // Check for valid service account for authentication
     const serviceAccountPath = path.resolve(__dirname, '../service-account.json');
-    let authFlag = '';
+
     if (fs.existsSync(serviceAccountPath)) {
       // Use service account for authentication
       process.env.GOOGLE_APPLICATION_CREDENTIALS = serviceAccountPath;
-      console.log('Using service account for authentication');
     }
 
     // Set CORS configuration using gsutil
     const cmd = `gsutil cors set ${configFilePath} gs://${bucket}`;
-    console.log(`Running: ${cmd}`);
 
-    const result = execSync(cmd, { encoding: 'utf8' });
-    console.log('CORS configuration completed successfully');
+    execSync(cmd, { encoding: 'utf8' });
 
     // Remove the temporary file
     fs.unlinkSync(configFilePath);
@@ -239,8 +232,6 @@ function getProductionDomains(projectId) {
 // Main execution
 (async function main() {
   try {
-    console.log('Starting Firebase Storage CORS configuration...');
-
     // Get configuration
     const envConfig = await getEnvironmentConfig();
     const projectConfig = await getProjectConfig();
@@ -250,8 +241,6 @@ function getProductionDomains(projectId) {
 
     if (!projectId) {
       console.warn('Could not determine Firebase project ID. CORS configuration may be incomplete.');
-    } else {
-      console.log(`Using Firebase project ID: ${projectId}`);
     }
 
     // Combine default, production, and environment-specific domains
@@ -263,8 +252,6 @@ function getProductionDomains(projectId) {
 
     // Add wildcards to ensure broader coverage
     domains.push('*'); // This allows any origin, which is fine for dev but review for prod
-
-    console.log('Configuring CORS for the following domains:', domains);
 
     // Create CORS config file
     const configFilePath = createCorsConfigFile(domains);

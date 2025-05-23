@@ -162,15 +162,7 @@ export default function createUserModule(
       updateUserProfile: firestoreAction(async function (context, profileData) {
         const { state } = context
 
-        console.log('GALLERY DEBUG - Starting updateUserProfile with state:', {
-          hasFirestore: !!state.firestore,
-          hasUser: !!state.user,
-          userId: state.user?.uid,
-          profileIsBound: !!state.profile,
-        })
-
         if (!state.firestore || !state.user?.uid) {
-          console.error('GALLERY DEBUG - Firestore or User ID not available')
           return { success: false, message: 'Not authenticated' }
         }
 
@@ -184,19 +176,12 @@ export default function createUserModule(
             updatedAt: new Date().toISOString(),
           }
 
-          // Log what we're trying to save
-          console.log(
-            'GALLERY DEBUG - Vuex updateUserProfile saving:',
-            JSON.stringify(updatedProfile, null, 2)
-          )
-
           // Check if document exists
           const userSnap = await getDoc(userRef)
 
           if (userSnap.exists()) {
             // Update existing document in Firestore
             await updateDoc(userRef, updatedProfile)
-            console.log('GALLERY DEBUG - Updated profile in Firestore')
           } else {
             // Create new document if it doesn't exist
             const newProfile = {
@@ -207,12 +192,10 @@ export default function createUserModule(
 
             // Save to Firestore
             await setDoc(userRef, newProfile)
-            console.log('GALLERY DEBUG - Created new profile in Firestore')
           }
 
           return { success: true, message: 'Profile updated successfully' }
         } catch (error: any) {
-          console.error('GALLERY DEBUG - Error updating profile:', error)
           return {
             success: false,
             message: error.message || 'Error updating profile',
