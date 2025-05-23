@@ -1,6 +1,6 @@
 <template>
   <div class="image-gallery-upload">
-    <h3 class="text-h5 mb-4">Image Gallery</h3>
+    <!-- <h3 class="text-h5 mb-4">Image Gallery</h3> -->
 
     <!-- Loading state -->
     <div v-if="isLoading" class="d-flex flex-column align-center my-4">
@@ -48,6 +48,14 @@
               :title="'Set as main image'"
             />
             <v-btn
+              v-if="isMainImage(image.id)"
+              icon="fas fa-star"
+              size="small"
+              variant="tonal"
+              color="warning"
+              :title="'Main image'"
+            />
+            <v-btn
               icon="fas fa-trash"
               size="small"
               variant="text"
@@ -55,21 +63,27 @@
               @click="removeImage(image.id)"
               :title="'Remove image'"
             />
+            <v-btn
+              icon="fas fa-globe"
+              size="small"
+              variant="text"
+              :color="image.isPublic ? 'green' : 'red'"
+              @click="toggleImagePublic(image.id)"
+              :title="image.isPublic ? 'Make private' : 'Make public'"
+            />
           </div>
         </div>
 
-        <v-overlay
+        <!-- Main image badge -->
+        <div
           v-if="isMainImage(image.id)"
-          content-class="main-image-overlay"
-          absolute
-          :model-value="isMainImage(image.id)"
-          class="justify-center align-center"
+          class="main-image-badge"
         >
-          <v-chip color="warning" label size="small">
+          <v-chip color="warning" label size="x-small">
             <v-icon start size="x-small">fas fa-star</v-icon>
             Main
           </v-chip>
-        </v-overlay>
+        </div>
       </v-card>
     </div>
 
@@ -119,7 +133,7 @@
 
       <div class="d-flex align-center justify-space-between mt-4">
         <div class="text-caption">
-          Max 5 images, 2MB each. Supported formats: JPG, PNG, GIF
+          Max {{ props.maxImages }} images, {{ props.maxSizeMB }}MB each. Supported formats: JPG, PNG, GIF
         </div>
 
         <div class="d-flex">
@@ -167,7 +181,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject, listAll, getMetadata, updateMetadata } from 'firebase/storage';
 import { useAuth } from '~/composables/useAuth';
 import { useImageCompression } from '~/composables/utils/useImageCompression';
 import { useFirebaseApp } from '~/composables/utils/useFirebaseApp';
@@ -180,11 +194,11 @@ const props = defineProps({
   },
   maxImages: {
     type: Number,
-    default: 5
+    default: 4
   },
   maxSizeMB: {
     type: Number,
-    default: 2
+    default: 5
   },
   storageFolder: {
     type: String,
@@ -205,7 +219,7 @@ const emit = defineEmits(['update:modelValue', 'upload-complete', 'upload-error'
 const { user } = useAuth();
 const { compressImage } = useImageCompression();
 const selectedFiles = ref<File[]>([]);
-const images = ref<Array<{id: string, url: string, name: string, size: number}>>([]);
+const images = ref<Array<{id: string, url: string, name: string, size: number, isPublic: boolean, uploaderUid: string}>>([]);
 const mainImageId = ref<string | null>(null);
 const isLoading = ref(false);
 const isUploading = ref(false);
@@ -276,71 +290,48 @@ async function loadImages() {
   error.value = null;
 
   try {
-    // Handle development environment differently to avoid CORS issues
-    if (isDevelopment.value) {
-      try {
-        const imagesRef = storageRef(storage, storagePath.value);
-        const imagesList = await listAll(imagesRef);
+    const imagesRef = storageRef(storage, storagePath.value);
+    const imagesList = await listAll(imagesRef);
 
-        const loadedImages = await Promise.all(
-          imagesList.items.map(async (item) => {
-            try {
-              const url = await getDownloadURL(item);
-              return {
-                id: item.name,
-                url,
-                name: item.name,
-                size: 0 // We can't reliably get size in development due to CORS
-              };
-            } catch (err) {
-              console.warn('Error loading image:', err);
-              return null;
-            }
-          })
-        );
+    const loadedImages = await Promise.all(
+      imagesList.items.map(async (item) => {
+        try {
+          // Use Firebase's getMetadata API to get accurate file size and custom metadata
+          const metadata = await getMetadata(item);
+          const url = await getDownloadURL(item);
 
-        images.value = loadedImages.filter(img => img !== null) as any[];
-      } catch (corsErr) {
-        console.warn('CORS error loading images from Firebase Storage:', corsErr);
-        // In development, show a friendly message and don't block the UI
-        error.value = 'Images can\'t be loaded in development due to CORS restrictions. This is normal and will work in production.';
-      }
-    } else {
-      // Production code path
-      const imagesRef = storageRef(storage, storagePath.value);
-      const imagesList = await listAll(imagesRef);
+          return {
+            id: item.name,
+            url,
+            name: item.name,
+            size: metadata.size || 0,
+            isPublic: metadata.customMetadata?.isPublic === 'true',
+            uploaderUid: metadata.customMetadata?.uploaderUid || activeUserId.value
+          };
+        } catch (err) {
+          console.error('Error loading image metadata:', err);
 
-      const loadedImages = await Promise.all(
-        imagesList.items.map(async (item) => {
+          // Fallback - still show the image but with limited metadata
           try {
             const url = await getDownloadURL(item);
-            const metadata = await fetch(url, { method: 'HEAD' })
-              .then(response => ({
-                size: parseInt(response.headers.get('Content-Length') || '0'),
-                type: response.headers.get('Content-Type')
-              }));
-
             return {
               id: item.name,
               url,
               name: item.name,
-              size: metadata.size
+              size: 0,
+              isPublic: false,
+              uploaderUid: activeUserId.value
             };
-          } catch (err) {
-            console.error('Error loading image metadata:', err);
-            return {
-              id: item.name,
-              url: await getDownloadURL(item),
-              name: item.name,
-              size: 0
-            };
+          } catch (downloadErr) {
+            console.error('Failed to get image URL:', downloadErr);
+            return null;
           }
-        })
-      );
+        }
+      })
+    );
 
-      images.value = loadedImages;
-    }
-
+    // Filter out any null entries (failed to load)
+    images.value = loadedImages.filter(img => img !== null) as any[];
     updateModelValue();
   } catch (err: any) {
     console.error('Error loading images:', err);
@@ -396,8 +387,17 @@ async function uploadImages() {
         }
       }
 
-      // Upload file
-      const uploadTask = uploadBytesResumable(fileRef, fileToUpload);
+      // Create metadata with uploader UID and public flag
+      const metadata = {
+        contentType: file.type,
+        customMetadata: {
+          uploaderUid: activeUserId.value,
+          isPublic: 'false' // Default to private
+        }
+      };
+
+      // Upload file with metadata
+      const uploadTask = uploadBytesResumable(fileRef, fileToUpload, metadata);
 
       await new Promise<void>((resolve, reject) => {
         uploadTask.on(
@@ -414,11 +414,15 @@ async function uploadImages() {
           async () => {
             try {
               const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+
+              // Include metadata in the image object
               images.value.push({
                 id: fileName,
                 url: downloadUrl,
                 name: file.name,
-                size: uploadTask.snapshot.totalBytes
+                size: uploadTask.snapshot.totalBytes,
+                isPublic: false,
+                uploaderUid: activeUserId.value
               });
 
               // Set as main image if this is the first image
@@ -508,6 +512,47 @@ async function removeImage(id: string) {
   }
 }
 
+async function toggleImagePublic(id: string) {
+  if (!activeUserId.value) return;
+
+  try {
+    const image = images.value.find(img => img.id === id);
+    if (!image) return;
+
+    // Toggle local state first for responsive UI
+    image.isPublic = !image.isPublic;
+    updateModelValue();
+
+    // Update the metadata in Firebase Storage
+    const imageRef = storageRef(storage, `${storagePath.value}/${id}`);
+
+    // Get current metadata
+    const currentMetadata = await getMetadata(imageRef);
+
+    // Update metadata
+    const newMetadata = {
+      customMetadata: {
+        ...currentMetadata.customMetadata,
+        isPublic: image.isPublic ? 'true' : 'false'
+      }
+    };
+
+    // Firebase's updateMetadata function
+    await updateMetadata(imageRef, newMetadata);
+  } catch (err: any) {
+    console.error('Error updating image privacy:', err);
+
+    // Revert local state change if Firebase update fails
+    const image = images.value.find(img => img.id === id);
+    if (image) {
+      image.isPublic = !image.isPublic;
+      updateModelValue();
+    }
+
+    error.value = `Error updating image privacy: ${err.message}`;
+  }
+}
+
 function updateModelValue() {
   emit('update:modelValue', {
     images: images.value,
@@ -551,5 +596,13 @@ function updateModelValue() {
   background: rgba(var(--v-theme-surface-rgb), 0.5);
   border: 2px dashed rgba(var(--v-theme-primary-rgb), 0.3);
   border-radius: 12px;
+}
+
+.main-image-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
 }
 </style>

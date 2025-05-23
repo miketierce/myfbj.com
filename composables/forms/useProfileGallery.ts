@@ -7,6 +7,8 @@ export interface GalleryImage {
   url: string
   name: string
   size: number
+  isPublic?: boolean
+  uploaderUid?: string
 }
 
 export interface ProfileGallery {
@@ -41,6 +43,11 @@ export function useProfileGallery(options: { initialValue?: ProfileGallery }) {
 
   const profileImageUrl = computed(() => mainImage.value?.url || null)
 
+  // Get public images that should be shared in the profile
+  const publicImages = computed(() => {
+    return galleryData.value.images.filter((img) => img.isPublic)
+  })
+
   // Track changes to mark as dirty
   watch(
     () => galleryData.value,
@@ -65,7 +72,10 @@ export function useProfileGallery(options: { initialValue?: ProfileGallery }) {
   }
 
   async function saveGalleryToProfile(
-    saveCallback: (data: { profileImageUrl: string | null }) => Promise<boolean>
+    saveCallback: (data: {
+      profileImageUrl: string | null
+      publicGalleryImages: GalleryImage[]
+    }) => Promise<boolean>
   ) {
     if (!user.value) {
       error.value = 'User not authenticated'
@@ -76,8 +86,18 @@ export function useProfileGallery(options: { initialValue?: ProfileGallery }) {
     error.value = null
 
     try {
+      // Prepare public images for Firestore by creating a simplified version
+      // that only includes necessary fields (avoid storing unnecessary data)
+      const publicGalleryImages = publicImages.value.map((img) => ({
+        id: img.id,
+        url: img.url,
+        name: img.name,
+        size: img.size,
+      }))
+
       const result = await saveCallback({
         profileImageUrl: profileImageUrl.value,
+        publicGalleryImages,
       })
 
       if (result) {
@@ -102,6 +122,7 @@ export function useProfileGallery(options: { initialValue?: ProfileGallery }) {
     lastSaveTime,
     mainImage,
     profileImageUrl,
+    publicImages,
     updateGallery,
     resetGallery,
     saveGalleryToProfile,

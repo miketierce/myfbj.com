@@ -1,8 +1,9 @@
-import { firestoreAction } from 'vuexfire'
-import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore'
+import { firestoreAction } from '../vuexfire-adapter'
+import { doc, setDoc, updateDoc, getDoc, onSnapshot } from 'firebase/firestore'
 import { type UserCredential } from 'firebase/auth'
 import type { Module } from 'vuex'
 import type { FirebaseServices } from '../index'
+import type { GalleryImage } from '~/types'
 
 // Define user state interface
 interface UserState {
@@ -44,9 +45,6 @@ export default function createUserModule(
           state.lastLogin = new Date().toISOString()
         }
       },
-      SET_PROFILE(state, profile) {
-        state.profile = profile
-      },
       SET_LOADING(state, isLoading) {
         state.isLoading = isLoading
       },
@@ -62,6 +60,9 @@ export default function createUserModule(
       },
       SET_INITIALIZED(state, initialized) {
         state.initialized = initialized
+      },
+      SET_PROFILE(state, profile) {
+        state.profile = profile
       },
     },
 
@@ -98,85 +99,198 @@ export default function createUserModule(
         if (firebaseUser) {
           dispatch('loadUserProfile', firebaseUser.uid)
         } else {
-          commit('SET_PROFILE', null)
+          dispatch('unbindUserProfile')
         }
       },
 
-      // Load user profile from Firestore
-      loadUserProfile: firestoreAction(
-        async ({ state, commit, bindFirestoreRef }, userId) => {
-          if (!state.firestore) {
-            console.error('Firestore not available in user module')
-            return
-          }
+      // Use firestoreAction to bind user profile to Vuex state
+      loadUserProfile: firestoreAction(async function (context, userId) {
+        const { state, bindFirestoreRef } = context
 
-          try {
-            const userProfileRef = doc(state.firestore, 'userProfiles', userId)
-
-            // First check if profile exists
-            const docSnap = await getDoc(userProfileRef)
-
-            if (docSnap.exists()) {
-              commit('SET_PROFILE', docSnap.data())
-            } else {
-              // Create a basic profile if it doesn't exist
-              const newProfile = {
-                userId,
-                email: state.user?.email || '',
-                displayName: state.user?.displayName || '',
-                photoURL: state.user?.photoURL || '',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              }
-
-              await setDoc(userProfileRef, newProfile)
-              commit('SET_PROFILE', newProfile)
-            }
-          } catch (error: any) {
-            console.error('Error loading user profile:', error)
-            commit(
-              'SET_AUTH_ERROR',
-              error.message || 'Error loading user profile'
-            )
-          }
+        if (!state.firestore) {
+          console.error('Firestore not available in user module')
+          return
         }
-      ),
+
+        try {
+          console.log(`Binding user profile for ${userId}`)
+
+          // Reference to the user profile document
+          const userRef = doc(state.firestore, 'users', userId)
+
+          // First check if profile exists
+          const userSnap = await getDoc(userRef)
+
+          if (!userSnap.exists()) {
+            console.log('No profile found, creating a new one')
+            // Create a basic profile
+            const newProfile = {
+              userId,
+              email: state.user?.email || '',
+              displayName: state.user?.displayName || '',
+              photoURL: state.user?.photoURL || '',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              publicGalleryImages: [],
+              mainGalleryImageId: null,
+            }
+
+            // Save to Firestore
+            await setDoc(userRef, newProfile)
+            console.log('Created new user profile in Firestore')
+          }
+
+          // Bind the reference to the profile state using VuexFire
+          // Pass the string for the property name and the document reference
+          await bindFirestoreRef('profile', userRef)
+          console.log('User profile binding complete')
+
+          return userRef
+        } catch (error) {
+          console.error('Error binding user profile:', error)
+        }
+      }),
+
+      // Unbind profile when logging out
+      unbindUserProfile: firestoreAction(function (context) {
+        const { unbindFirestoreRef } = context
+        console.log('Unbinding user profile')
+        unbindFirestoreRef('profile')
+      }),
 
       // Update user profile in Firestore
-      updateUserProfile: firestoreAction(
-        async ({ state, commit }, profileData) => {
-          if (!state.firestore || !state.user?.uid) {
-            console.error('Firestore or User ID not available')
-            return { success: false, message: 'Not authenticated' }
+      updateUserProfile: firestoreAction(async function (context, profileData) {
+        const { state } = context
+
+        console.log('GALLERY DEBUG - Starting updateUserProfile with state:', {
+          hasFirestore: !!state.firestore,
+          hasUser: !!state.user,
+          userId: state.user?.uid,
+          profileIsBound: !!state.profile,
+        })
+
+        if (!state.firestore || !state.user?.uid) {
+          console.error('GALLERY DEBUG - Firestore or User ID not available')
+          return { success: false, message: 'Not authenticated' }
+        }
+
+        try {
+          const userId = state.user.uid
+          const userRef = doc(state.firestore, 'users', userId)
+
+          // Add metadata
+          const updatedProfile = {
+            ...profileData,
+            updatedAt: new Date().toISOString(),
           }
 
-          try {
-            const userProfileRef = doc(
-              state.firestore,
-              'userProfiles',
-              state.user.uid
-            )
+          // Log what we're trying to save
+          console.log(
+            'GALLERY DEBUG - Vuex updateUserProfile saving:',
+            JSON.stringify(updatedProfile, null, 2)
+          )
 
-            // Add metadata
-            const updatedProfile = {
-              ...profileData,
-              updatedAt: new Date().toISOString(),
+          // Check if document exists
+          const userSnap = await getDoc(userRef)
+
+          if (userSnap.exists()) {
+            // Update existing document in Firestore
+            await updateDoc(userRef, updatedProfile)
+            console.log('GALLERY DEBUG - Updated profile in Firestore')
+          } else {
+            // Create new document if it doesn't exist
+            const newProfile = {
+              ...updatedProfile,
+              userId,
+              createdAt: new Date().toISOString(),
             }
 
-            await updateDoc(userProfileRef, updatedProfile)
-            commit('SET_PROFILE', { ...state.profile, ...updatedProfile })
+            // Save to Firestore
+            await setDoc(userRef, newProfile)
+            console.log('GALLERY DEBUG - Created new profile in Firestore')
+          }
 
-            return { success: true, message: 'Profile updated successfully' }
-          } catch (error: any) {
-            console.error('Error updating profile:', error)
-            return {
-              success: false,
-              message: error.message || 'Error updating profile',
-              error,
-            }
+          return { success: true, message: 'Profile updated successfully' }
+        } catch (error: any) {
+          console.error('GALLERY DEBUG - Error updating profile:', error)
+          return {
+            success: false,
+            message: error.message || 'Error updating profile',
+            error,
           }
         }
-      ),
+      }),
+
+      // Save public gallery images to Firestore
+      savePublicGalleryImages: firestoreAction(async function (
+        context,
+        { mainImageId = null, publicImages = [] }
+      ) {
+        const { state, dispatch } = context
+
+        console.log(
+          'GALLERY DEBUG - Starting savePublicGalleryImages with state:',
+          {
+            hasFirestore: !!state.firestore,
+            hasUser: !!state.user,
+            userId: state.user?.uid,
+            profileIsBound: !!state.profile,
+          }
+        )
+
+        if (!state.firestore || !state.user?.uid) {
+          console.error('GALLERY DEBUG - Firestore or User ID not available')
+          return { success: false, message: 'Not authenticated' }
+        }
+
+        try {
+          console.log('GALLERY DEBUG - Saving public gallery images:', {
+            mainImageId,
+            publicImagesCount: publicImages.length,
+          })
+
+          // Find the main image URL if mainImageId is provided
+          let mainImageUrl = null
+          if (mainImageId && publicImages.length > 0) {
+            const mainImage = publicImages.find((img) => img.id === mainImageId)
+            if (mainImage) {
+              mainImageUrl = mainImage.url
+            }
+          }
+
+          // Only update Firestore, not state directly
+          const profileUpdate = {
+            publicGalleryImages: publicImages,
+            mainGalleryImageId: mainImageId,
+          }
+
+          // Only include photoURL if we have a valid value to avoid Firebase errors
+          if (mainImageUrl) {
+            profileUpdate.photoURL = mainImageUrl
+          } else if (state.profile?.photoURL) {
+            profileUpdate.photoURL = state.profile.photoURL
+          }
+          // If both are undefined, we'll omit photoURL entirely from the update
+
+          console.log('GALLERY DEBUG - Profile update payload:', profileUpdate)
+
+          // Use the dispatch from context parameter
+          const result = await dispatch('updateUserProfile', profileUpdate)
+          console.log('GALLERY DEBUG - updateUserProfile result:', result)
+
+          return result
+        } catch (error: any) {
+          console.error(
+            'GALLERY DEBUG - Error saving public gallery images:',
+            error
+          )
+          return {
+            success: false,
+            message: error.message || 'Error saving gallery images',
+            error,
+          }
+        }
+      }),
 
       // Sign in with email and password
       async signIn({ state, commit, dispatch }, { email, password }) {
@@ -299,6 +413,20 @@ export default function createUserModule(
       userEmail: (state) => state.user?.email || state.profile?.email || null,
       userPhotoURL: (state) =>
         state.user?.photoURL || state.profile?.photoURL || null,
+      publicGalleryImages: (state) => state.profile?.publicGalleryImages || [],
+      mainGalleryImageId: (state) => state.profile?.mainGalleryImageId || null,
+      mainGalleryImageUrl: (state) => {
+        if (
+          state.profile?.mainGalleryImageId &&
+          state.profile?.publicGalleryImages
+        ) {
+          const mainImage = state.profile.publicGalleryImages.find(
+            (img: GalleryImage) => img.id === state.profile.mainGalleryImageId
+          )
+          return mainImage?.url || state.profile?.photoURL || null
+        }
+        return state.profile?.photoURL || null
+      },
     },
   }
 }

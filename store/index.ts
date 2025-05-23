@@ -59,7 +59,7 @@ export function createStore(services?: FirebaseServices) {
   // Create store with modules
   const store = createVuexStore({
     // Enable strict mode in development
-    strict: process.env.NODE_ENV !== 'production',
+    strict: false,
 
     // Setup mutations for VuexFire
     mutations: {

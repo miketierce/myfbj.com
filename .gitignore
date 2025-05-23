@@ -33,3 +33,4 @@ devEnv_base64.txt
 prodEnv_base64.txt
 .data/content/contents.sqlite
 .npmrc
+.output/*

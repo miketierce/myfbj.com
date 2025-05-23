@@ -329,7 +329,7 @@ onMounted(() => {
   // Initialize with the server-provided theme if available to prevent hydration mismatch
   if (serverTheme && themeState && themeState.currentTheme !== serverTheme) {
     // Sync the client state with what the server rendered
-    setTheme(serverTheme);
+    setAppTheme(serverTheme);
   } else {
     // Fallback to normal initialization
     initializeTheme();

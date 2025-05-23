@@ -571,36 +571,51 @@ export const useAuth = () => {
   }
 
   // Update user profile information and store in Firestore
-  const updateUserProfile = async (profileData: {
-    displayName?: string
-    photoURL?: string
-    theme?: string
-  }) => {
-    if (!auth || !auth.currentUser) {
-      error.value = 'No user is signed in'
+  const updateUserProfile = async (
+    userId: string,
+    profileData: {
+      displayName?: string
+      photoURL?: string
+      theme?: string
+      publicGalleryImages?: any[] // Allow public gallery images
+      [key: string]: any // Allow other properties
+    }
+  ) => {
+    if (!auth) {
+      error.value = 'Firebase Auth is not initialized'
+      return false
+    }
+
+    // If userId is not provided, use the current user's ID
+    const targetUserId = userId || auth.currentUser?.uid
+
+    if (!targetUserId) {
+      error.value = 'No user ID provided and no user is signed in'
       return false
     }
 
     try {
       isLoading.value = true
       error.value = null
-      const currentUser = auth.currentUser
 
-      // Update Firebase Auth profile
-      if (profileData.displayName || profileData.photoURL) {
-        console.log(
-          `Updating auth profile with displayName: ${profileData.displayName}`
-        )
-        await updateProfile(currentUser, {
-          displayName: profileData.displayName,
-          photoURL: profileData.photoURL,
-        })
+      // If we're updating the current user's profile
+      if (auth.currentUser && targetUserId === auth.currentUser.uid) {
+        // Update Firebase Auth profile
+        if (profileData.displayName || profileData.photoURL) {
+          console.log(
+            `Updating auth profile with displayName: ${profileData.displayName}`
+          )
+          await updateProfile(auth.currentUser, {
+            displayName: profileData.displayName,
+            photoURL: profileData.photoURL,
+          })
+        }
       }
 
       // Update user data in Firestore
-      const isAnon = currentUser.isAnonymous
+      const isAnon = auth.currentUser?.isAnonymous || false
       const saveResult = await setUserData(
-        currentUser.uid,
+        targetUserId,
         {
           ...profileData,
           lastUpdateAt: new Date(),
@@ -615,7 +630,9 @@ export const useAuth = () => {
       }
 
       // Refresh user state to ensure UI shows updated information
-      user.value = auth.currentUser
+      if (auth.currentUser && targetUserId === auth.currentUser.uid) {
+        user.value = auth.currentUser
+      }
 
       isLoading.value = false
       return saveResult

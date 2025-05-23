@@ -316,6 +316,77 @@ const { app, auth, firestore, storage } = useFirebaseApp()
 
 This ensures you get the same Firebase instances throughout the app, whether from VueFire or direct initialization.
 
+### VuexFire Adapter for Firebase v11
+
+This project includes a custom adapter (`store/vuexfire-adapter.ts`) that provides compatibility between VuexFire 3.x and Firebase v11.x. The adapter allows your code to continue using VuexFire's familiar API while working with the latest Firebase SDK.
+
+#### Why the Adapter Exists
+
+VuexFire 3.x was designed for Firebase v8.x which used a different API compared to Firebase v11.x. Key differences include:
+
+- Firebase v8.x used a callback-based API, while Firebase v11.x uses a Promise-based API
+- References and queries are created differently in Firebase v11.x
+- Real-time listeners are set up differently in Firebase v11.x
+
+#### How to Use the Adapter
+
+Instead of importing directly from VuexFire, import from the adapter:
+
+```js
+// BEFORE (with VuexFire directly)
+import { firestoreAction } from 'vuexfire'
+
+// AFTER (with the adapter)
+import { firestoreAction } from '../vuexfire-adapter'
+```
+
+Then use `firestoreAction` normally in your store modules:
+
+```js
+export const actions = {
+  bindProfile: firestoreAction(async function ({ bindFirestoreRef }, userId) {
+    const docRef = doc(firestore, 'userProfiles', userId)
+    await bindFirestoreRef('profile', docRef)
+  })
+}
+```
+
+#### How the Adapter Works
+
+The adapter:
+
+1. Creates a wrapper around the original `firestoreAction` from VuexFire
+2. Intercepts calls to `bindFirestoreRef` and `unbindFirestoreRef`
+3. Translates Firebase v11.x references (document and collection) to work with VuexFire
+4. Sets up proper real-time listeners using Firebase v11.x's `onSnapshot` API
+5. Triggers the appropriate VuexFire mutations to maintain state consistency
+6. Handles cleanup of listeners to prevent memory leaks
+
+#### Adapter Features
+
+- **Transparent Integration**: Works as a drop-in replacement for VuexFire
+- **Full Compatibility**: Supports both document and collection references
+- **Real-time Updates**: Maintains live data synchronization
+- **Memory Management**: Properly cleans up listeners when components unmount
+- **Error Handling**: Includes robust error handling for binding operations
+- **Logging**: Provides detailed logs for debugging purposes
+
+#### Implementation Details for Developers
+
+The adapter handles two main types of Firestore references:
+
+1. **Document References**: Created with `doc(firestore, 'collection', 'docId')`
+   - Initial data is fetched with `getDoc()`
+   - Real-time updates use `onSnapshot()`
+   - Mutations use either `SET_PROFILE` or `vuexfire/VUEXFIRE_DOC_MODIFIED`
+
+2. **Collection References**: Created with `collection(firestore, 'collection')` or query functions
+   - Real-time updates use `onSnapshot()`
+   - Data is mapped to include document IDs
+   - Mutations use `vuexfire/VUEXFIRE_ARRAY_MODIFIED`
+
+All subscription cleanup is managed by the adapter through an internal `unsubscribeFunctions` Map.
+
 ## State Management
 
 ### VueFire for Simple State

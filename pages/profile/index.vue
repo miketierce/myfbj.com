@@ -244,26 +244,16 @@
                       <div class="text-h6 font-weight-medium">Photo Gallery</div>
                       <div class="text-body-2 text-medium-emphasis">Manage your profile images</div>
                     </div>
-                    <v-btn
-                      v-if="galleryDirty"
-                      color="primary"
-                      prepend-icon="fas fa-save"
-                      :loading="isSavingGallery"
-                      @click="saveGallery"
-                    >
-                      Save Changes
-                    </v-btn>
                   </div>
                 </v-card-title>
 
                 <v-card-text>
-                  <ImageGalleryUpload
-                    v-model="galleryData"
-                    :max-images="5"
-                    :max-size-m-b="2"
+                  <!-- Replace the manual gallery handling with our Vuex wrapper component -->
+                  <VuexImageGallery
+                    title="Profile Photos"
+                    :max-images="4"
+                    :max-size-m-b="5"
                     storage-folder="profile-images"
-                    @upload-complete="handleGalleryUpdate"
-                    @delete-image="handleGalleryUpdate"
                   />
                 </v-card-text>
               </v-card>
@@ -551,6 +541,7 @@ import { themeState } from '~/plugins/theme-state';
 import { useProfileGallery } from '~/composables/forms/useProfileGallery';
 import UserSettingsForm from '~/components/forms/UserSettingsForm.vue';
 import ImageGalleryUpload from '~/components/forms/ImageGalleryUpload.vue';
+import VuexImageGallery from '~/components/forms/VuexImageGallery.vue';
 
 // Auth management and user data
 const { user, isLoading: isAuthLoading, error: authError, convertAnonymousToEmailLink, signOutUser, getUserData, updateUserProfile, firestoreDisabled } = useAuth();
@@ -644,7 +635,33 @@ const saveGallery = async () => {
     if (!user.value) return false;
 
     try {
-      await updateUserProfile(user.value.uid, { photoURL: data.profileImageUrl });
+      // Debug logging to see what's being saved
+      console.log("Image data being sent to Firestore:", {
+        profileImageUrl: data.profileImageUrl,
+        publicImagesCount: data.publicGalleryImages?.length || 0,
+        publicGalleryImages: data.publicGalleryImages
+      });
+
+      // Update the user's profile photo URL and save public gallery images to Firestore
+      await updateUserProfile(user.value.uid, {
+        photoURL: data.profileImageUrl,
+        publicGalleryImages: data.publicGalleryImages
+      });
+
+      // Try to also read back the data to verify it was saved
+      setTimeout(async () => {
+        try {
+          const userData = await getUserData(user.value.uid, user.value.isAnonymous);
+          console.log("User data after save:", {
+            hasPublicImages: !!userData?.publicGalleryImages,
+            publicImagesCount: userData?.publicGalleryImages?.length || 0,
+            userData
+          });
+        } catch (verifyErr) {
+          console.error("Failed to verify saved data:", verifyErr);
+        }
+      }, 1000);
+
       return true;
     } catch (err) {
       console.error('Failed to update user profile with image:', err);
