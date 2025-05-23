@@ -1,5 +1,6 @@
 <template>
-  <v-app :theme="themeForRendering" class="app-wrapper" :data-theme="themeForRendering">
+  <!-- Simply use Vuetify's theme system without extra props -->
+  <v-app class="app-wrapper">
     <div class="app-layout">
       <header class="app-header">
         <div class="header-content">
@@ -16,7 +17,7 @@
 
           <!-- Right side actions -->
           <div class="actions">
-            <!-- Theme toggle wrapped in ClientOnly -->
+            <!-- Theme toggle - simplified with ClientOnly -->
             <ClientOnly>
               <v-btn
                 icon
@@ -27,16 +28,15 @@
                 <i :class="isDarkTheme ? 'fas fa-sun' : 'fas fa-moon'" />
               </v-btn>
               <template #fallback>
-                <!-- Fallback for SSR: a simple disabled button or placeholder -->
                 <v-btn icon variant="text" title="Toggle theme" disabled>
-                  <i class="fas fa-circle-notch" /> <!-- Placeholder icon -->
+                  <i class="fas fa-circle-notch" />
                 </v-btn>
               </template>
             </ClientOnly>
 
             <!-- User menu -->
             <div class="user-menu">
-              <!-- For authenticated users, direct navigation to profile -->
+              <!-- For authenticated users -->
               <v-btn
                 v-if="user && !user.isAnonymous"
                 variant="outlined"
@@ -47,7 +47,7 @@
                 <span>Profile</span>
               </v-btn>
 
-              <!-- For anonymous/unauthenticated users, keep dropdown menu -->
+              <!-- For anonymous/unauthenticated users -->
               <v-menu v-else v-model="userMenuOpen" :close-on-content-click="false">
                 <template #activator="{ props }">
                   <v-btn
@@ -81,15 +81,14 @@
                         </div>
                       </div>
 
-                      <!-- Theme selection -->
+                      <!-- Simplified theme selection -->
                       <div class="theme-selector">
                         <v-select
-                          v-model="currentThemeValue"
+                          v-model="currentTheme"
                           label="Theme"
-                          :items="[
-                            { title: 'Light', value: 'wireframe' },
-                            { title: 'Dark', value: 'wireframeDark' }
-                          ]"
+                          :items="availableThemes"
+                          item-title="label"
+                          item-value="name"
                           variant="outlined"
                           density="compact"
                           @update:model-value="setAppTheme"
@@ -134,14 +133,14 @@
                           density="compact"
                         />
 
+                        <!-- Simplified theme selection -->
                         <div class="theme-selector">
                           <v-select
-                            v-model="currentThemeValue"
+                            v-model="currentTheme"
                             label="Theme"
-                            :items="[
-                              { title: 'Light', value: 'wireframe' },
-                              { title: 'Dark', value: 'wireframeDark' }
-                            ]"
+                            :items="availableThemes"
+                            item-title="label"
+                            item-value="name"
                             variant="outlined"
                             density="compact"
                             @update:model-value="setAppTheme"
@@ -225,59 +224,22 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, useSSRContext } from 'vue';
-import { themeState } from '~/plugins/theme-state';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useAppTheme } from '~/composables/useTheme';
 import { useAuth } from '~/composables/useAuth';
-import { useHead, useRequestEvent } from '#app';
-
-// Get SSR context and event for theme detection
-const ssrContext = import.meta.server ? useSSRContext() : null;
-const event = useRequestEvent();
-
-// Get the server-provided theme if available
-const serverTheme = event?.context?.theme;
-
-// Use the global theme state directly for maximum consistency
-// This ensures consistent theme behavior across the entire application
-const isDarkTheme = computed(() => themeState.isDark);
-const currentThemeValue = computed(() => themeState.currentTheme);
+import { useHead } from '#imports';
 
 // Get theme utilities from our composable
-const { initializeTheme, toggleTheme, setTheme } = useAppTheme();
+const {
+  currentTheme,
+  isDark: isDarkTheme,
+  availableThemes,
+  toggleTheme: toggleAppTheme,
+  setTheme: setAppTheme
+} = useAppTheme();
 
-// Make sure we always have a theme value for rendering
-// Use the server theme for SSR hydration to prevent mismatches
-const themeForRendering = computed(() => {
-  if (import.meta.server && serverTheme) {
-    return serverTheme; // Use server-determined theme during SSR
-  }
-  return currentThemeValue.value || (isDarkTheme.value ? 'wireframeDark' : 'wireframe');
-});
-
-// Use these methods to modify the theme
-const toggleAppTheme = () => themeState.toggleTheme();
-const setAppTheme = (theme) => themeState.setTheme(theme);
-
-// Enhanced head management for SSR theme consistency
-useHead(computed(() => {
-  // During SSR, use the server-detected theme to avoid hydration mismatches
-  const isDark = import.meta.server && serverTheme
-    ? serverTheme === 'wireframeDark'
-    : isDarkTheme.value;
-
-  return {
-    htmlAttrs: {
-      class: [
-
-        isDark ? 'v-theme--wireframeDark' : 'v-theme--wireframe'
-      ]
-    }
-  };
-}));
-
-// Auth management
-const { user, isLoading: isAuthLoading, error, sendSignInLink, signInAnonymousUser, signOutUser, convertAnonymousToEmailLink, firestoreDisabled } = useAuth();
+// Auth management - only import what we use
+const { user, isLoading: isAuthLoading, error, sendSignInLink, signInAnonymousUser, firestoreDisabled } = useAuth();
 
 // User menu state
 const userMenuOpen = ref(false)
@@ -289,8 +251,16 @@ const showSessionRecovery = ref(false)
 const recoveryEmail = ref('')
 const lastStoredAuthState = ref(false)
 
+// Add basic head management for improved SEO and social sharing
+useHead({
+  htmlAttrs: {
+    // This will be applied during SSR and hydrated on client
+    class: computed(() => [isDarkTheme.value ? 'dark-theme' : 'light-theme'])
+  }
+})
+
 // Check for auth state changes to detect session issues
-watch(() => user.value, (newUser, oldUser) => {
+watch(() => user.value, (newUser) => {
   // Store authentication state in local storage for recovery
   if (import.meta.client) {
     if (newUser && !newUser.isAnonymous) {
@@ -324,21 +294,12 @@ watch(() => user.value, (newUser, oldUser) => {
   }
 })
 
-// Initialize the theme when the component is mounted
+// Initialize client-side behavior
 onMounted(() => {
-  // Initialize with the server-provided theme if available to prevent hydration mismatch
-  if (serverTheme && themeState && themeState.currentTheme !== serverTheme) {
-    // Sync the client state with what the server rendered
-    setAppTheme(serverTheme);
-  } else {
-    // Fallback to normal initialization
-    initializeTheme();
-  }
-
   if (import.meta.client) {
     // Check if we're coming from a magic link authentication flow
     const isFromMagicLink = window.location.href.includes('apiKey=') ||
-                           window.location.href.includes('mode=');
+                          window.location.href.includes('mode=');
 
     // Only set lastStoredAuthState if we're not in a magic link flow
     if (!isFromMagicLink) {
@@ -359,6 +320,42 @@ onMounted(() => {
     }
   }
 })
+
+// Handle login form submission
+const handleLogin = async () => {
+  if (email.value) {
+    try {
+      await sendSignInLink(email.value);
+      showLoginSuccess.value = true;
+      userMenuOpen.value = false;
+    } catch {
+      // Error is handled by useAuth composable
+    }
+  }
+};
+
+// Handle anonymous login
+const loginAnonymously = async () => {
+  try {
+    await signInAnonymousUser();
+    userMenuOpen.value = false;
+  } catch {
+    // Error is handled by useAuth composable
+  }
+};
+
+// Handle re-login from session recovery dialog
+const handleReLogin = async () => {
+  if (recoveryEmail.value) {
+    try {
+      await sendSignInLink(recoveryEmail.value);
+      showLoginSuccess.value = true;
+      showSessionRecovery.value = false;
+    } catch {
+      // Error is handled by useAuth composable
+    }
+  }
+};
 </script>
 
 <style scoped>
@@ -371,7 +368,6 @@ onMounted(() => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-
 }
 
 .app-header {
@@ -402,7 +398,7 @@ onMounted(() => {
   font-weight: bold;
 }
 
-html.dark-theme .logo-placeholder {
+:deep(.v-theme--wireframeDark) .logo-placeholder {
   border-color: #ffffff;
 }
 
@@ -437,7 +433,7 @@ html.dark-theme .logo-placeholder {
   font-size: 0.875rem;
 }
 
-html.dark-theme .error-message {
+:deep(.v-theme--wireframeDark) .error-message {
   color: #ff9999;
 }
 

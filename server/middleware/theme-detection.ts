@@ -5,12 +5,12 @@ export default defineEventHandler(async (event) => {
   // Only run during SSR, not for API routes
   if (!event.path.startsWith('/api/')) {
     try {
-      // First try to get theme from auth claims (for authenticated users)
-      const theme = await getThemeFromAuth(event)
+      // First try to get theme from auth claims (highest priority)
+      const themeFromAuth = await getThemeFromAuth(event)
 
-      if (theme) {
-        // Store theme in the event context for access in app.vue or layouts
-        event.context.theme = theme
+      if (themeFromAuth) {
+        // Store theme from auth claim in the event context
+        event.context.theme = themeFromAuth
         return
       }
 

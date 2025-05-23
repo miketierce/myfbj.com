@@ -8,17 +8,14 @@ import 'vuetify/styles'
 import { createVuetify } from 'vuetify'
 import { defineNuxtPlugin } from '#app'
 import { h } from 'vue'
+import type { IconSet } from 'vuetify'
 
 // Import theme configuration
 import {
   vuetifyConfig,
   wireframeTheme,
   wireframeDarkTheme,
-  additionalCss,
 } from '../vuetify.config'
-
-// Import cookie parsing for SSR theme consistency
-import { useCookie } from '#app'
 
 // Define Font Awesome icons for Vuetify 3
 const aliases = {
@@ -59,29 +56,34 @@ const aliases = {
   minus: 'fas fa-minus',
 }
 
-// Define the IconProps type
-type IconProps = {
-  icon: string
-}
-
 // Custom icon resolver for Font Awesome
 const fa = {
-  component: (props: IconProps) => {
+  component: (props: any) => {
+    // Cast the icon to string since we're using class strings for FA
     const icon = props.icon as string
     return h('i', { class: icon })
   },
-}
+} as IconSet
 
-export default defineNuxtPlugin((nuxtApp) => {
-  // Get theme preference from cookie for SSR consistency
+export default defineNuxtPlugin((nuxtApp: any) => {
+  // Get theme from SSR context (set by the theme-detection middleware)
+  // This ensures we're using the theme from auth claim when available
   let defaultTheme = 'wireframe'
-  const preferredThemeCookie = useCookie('preferredTheme')
-  if (preferredThemeCookie.value === 'wireframeDark') {
-    defaultTheme = 'wireframeDark'
+
+  if (process.server) {
+    // Get theme from server context if available (auth claim)
+    if (nuxtApp.ssrContext?.event?.context?.theme) {
+      defaultTheme = nuxtApp.ssrContext.event.context.theme
+    }
+  } else if (import.meta.client) {
+    // On client-side, check local storage first for saved preference
+    const savedTheme = localStorage.getItem('preferredTheme')
+    if (savedTheme === 'wireframe' || savedTheme === 'wireframeDark') {
+      defaultTheme = savedTheme
+    }
   }
 
   const vuetify = createVuetify({
-    // Use the theme configuration with SSR-consistent default theme
     theme: {
       defaultTheme,
       themes: {
@@ -99,55 +101,48 @@ export default defineNuxtPlugin((nuxtApp) => {
     defaults: vuetifyConfig.defaults,
   })
 
-  // Provide a helper function to update theme class on the HTML element
-  nuxtApp.provide('updateThemeClasses', (themeName: string) => {
+  // Provide direct access to Vuetify's theme system
+  nuxtApp.provide('vuetifyTheme', vuetify.theme)
+
+  // Simpler theme toggler
+  nuxtApp.provide('toggleTheme', () => {
+    const currentTheme = vuetify.theme.global.current.value.name
+    const newTheme =
+      currentTheme === 'wireframeDark' ? 'wireframe' : 'wireframeDark'
+    vuetify.theme.global.name.value = newTheme
+
+    // Save preference
     if (import.meta.client) {
-      if (themeName === 'wireframeDark') {
-        document.documentElement.classList.add('dark-theme')
-        document.documentElement.classList.add('v-theme--wireframeDark')
-        document.documentElement.classList.remove('light-theme')
-        document.documentElement.classList.remove('v-theme--wireframe')
-        document.body.style.backgroundColor = '#121212'
-      } else {
-        document.documentElement.classList.add('light-theme')
-        document.documentElement.classList.add('v-theme--wireframe')
-        document.documentElement.classList.remove('dark-theme')
-        document.documentElement.classList.remove('v-theme--wireframeDark')
-        document.body.style.backgroundColor = '#FFFFFF'
+      localStorage.setItem('preferredTheme', newTheme)
+      document.documentElement.setAttribute('data-theme', newTheme)
+    }
+  })
+
+  // Direct theme setter
+  nuxtApp.provide('setTheme', (themeName: string) => {
+    if (themeName === 'wireframe' || themeName === 'wireframeDark') {
+      vuetify.theme.global.name.value = themeName
+
+      // Save preference
+      if (import.meta.client) {
+        localStorage.setItem('preferredTheme', themeName)
+        document.documentElement.setAttribute('data-theme', themeName)
       }
     }
   })
 
-  // Apply the additional CSS when on client-side
+  // Apply initial theme attribute to document for CSS targeting
   if (import.meta.client) {
-    // Create style element for the additional CSS
-    const styleEl = document.createElement('style')
-    styleEl.textContent = additionalCss
-    styleEl.id = 'vuetify-additional-styles'
+    document.documentElement.setAttribute('data-theme', defaultTheme)
 
-    // Wait for document to be ready before adding styles
+    // Apply the theme once DOM is ready
     nuxtApp.hook('app:mounted', () => {
-      document.head.appendChild(styleEl)
-      console.log('Applied additional Vuetify styles from vuetify.config.ts')
-
-      // Ensure theme classes are applied after app is mounted
-      nuxtApp.$updateThemeClasses(
-        vuetify.theme?.global?.name?.value || defaultTheme
-      )
-    })
-
-    // Additional hook to ensure theme consistency during page transitions
-    nuxtApp.hook('page:finish', () => {
-      nuxtApp.$updateThemeClasses(
-        vuetify.theme?.global?.name?.value || defaultTheme
+      document.documentElement.setAttribute(
+        'data-theme',
+        vuetify.theme.global.name.value
       )
     })
   }
 
-  console.log(
-    `Vuetify plugin initialized with theme: ${defaultTheme} (from cookie: ${
-      preferredThemeCookie.value || 'none'
-    })`
-  )
   nuxtApp.vueApp.use(vuetify)
 })
