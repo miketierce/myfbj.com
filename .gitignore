@@ -28,9 +28,9 @@ service-account.json
 .data/content/contents.sqlite
 *.data
 *.data/content
-*.data/content/contents.sqlite
+
+# Keys
 devEnv_base64.txt
 prodEnv_base64.txt
-.data/content/contents.sqlite
 .npmrc
 .output/*
