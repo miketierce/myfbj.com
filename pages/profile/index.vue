@@ -537,7 +537,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, reactive } from 'vue';
 import { useAuth } from '../../composables/useAuth';
-import { themeState } from '~/plugins/theme-state';
+import { useAppTheme } from '~/composables/useTheme';
 import { useProfileGallery } from '~/composables/forms/useProfileGallery';
 import UserSettingsForm from '~/components/forms/UserSettingsForm.vue';
 import ImageGalleryUpload from '~/components/forms/ImageGalleryUpload.vue';
@@ -546,16 +546,18 @@ import VuexImageGallery from '~/components/forms/VuexImageGallery.vue';
 // Auth management and user data
 const { user, isLoading: isAuthLoading, error: authError, convertAnonymousToEmailLink, signOutUser, getUserData, updateUserProfile, firestoreDisabled } = useAuth();
 
-// Use the global theme state directly for maximum consistency
-// This ensures theme changes from anywhere in the app (including app bar) are reflected here
-const isDarkTheme = computed(() => themeState.isDark);
-const currentThemeValue = computed(() => themeState.currentTheme);
+// Theme management using the simplified useAppTheme composable
+const {
+  currentTheme,
+  isDark: isDarkTheme,
+  toggleTheme: toggleAppTheme,
+  setTheme: setAppTheme,
+  availableThemes
+} = useAppTheme();
+
 const isDevelopment = computed(() => process.dev);
 
 // Methods to modify the theme
-const toggleAppTheme = () => themeState.toggleTheme();
-const setAppTheme = (theme) => themeState.setTheme(theme);
-
 const router = useRouter();
 const route = useRoute();
 

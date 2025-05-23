@@ -1,5 +1,5 @@
 <template>
-  <!-- Simply use Vuetify's theme system without extra props -->
+  <!-- Use Vuetify's theme system without any extra props -->
   <v-app class="app-wrapper">
     <div class="app-layout">
       <header class="app-header">
@@ -17,9 +17,10 @@
 
           <!-- Right side actions -->
           <div class="actions">
-            <!-- Theme toggle - simplified with ClientOnly -->
+            <!-- Theme toggle - wrap the entire button in ClientOnly to prevent hydration issues -->
             <ClientOnly>
               <v-btn
+                v-if="!isHydrating"
                 icon
                 variant="text"
                 :title="isDarkTheme ? 'Switch to light theme' : 'Switch to dark theme'"
@@ -36,7 +37,7 @@
 
             <!-- User menu -->
             <div class="user-menu">
-              <!-- For authenticated users -->
+              <!-- For authenticated users, direct navigation to profile -->
               <v-btn
                 v-if="user && !user.isAnonymous"
                 variant="outlined"
@@ -47,91 +48,40 @@
                 <span>Profile</span>
               </v-btn>
 
-              <!-- For anonymous/unauthenticated users -->
-              <v-menu v-else v-model="userMenuOpen" :close-on-content-click="false">
-                <template #activator="{ props }">
-                  <v-btn
-                    v-bind="props"
-                    variant="outlined"
-                    class="user-btn"
-                  >
-                    <i class="fas fa-user mr-2"/>
-                    <span v-if="user && user.isAnonymous">
-                      Setup Profile
-                      <span class="notification-dot"/>
-                    </span>
-                    <span v-else>Login</span>
-                  </v-btn>
-                </template>
-
-                <v-card min-width="300">
-                  <v-card-title>
-                    <template v-if="user && user.isAnonymous">Account Setup</template>
-                    <template v-else>Login</template>
-                  </v-card-title>
-
-                  <v-card-text>
-                    <!-- Show profile setup for anonymous users -->
-                    <template v-if="user && user.isAnonymous">
-                      <!-- Anonymous user info -->
-                      <div class="user-info">
-                        <div class="status-banner mb-3">
-                          <v-chip color="warning" size="small">Temporary Account</v-chip>
-                          <p class="mt-2">Complete your profile to save your progress</p>
-                        </div>
-                      </div>
-
-                      <!-- Simplified theme selection -->
-                      <div class="theme-selector">
-                        <v-select
-                          v-model="currentTheme"
-                          label="Theme"
-                          :items="availableThemes"
-                          item-title="label"
-                          item-value="name"
-                          variant="outlined"
-                          density="compact"
-                          @update:model-value="setAppTheme"
-                        />
-                      </div>
-
-                      <v-btn
-                        block
-                        color="primary"
-                        class="mt-4"
-                        to="/profile"
-                      >
+              <!-- For anonymous/unauthenticated users, keep dropdown menu -->
+              <ClientOnly>
+                <v-menu v-if="!user || user.isAnonymous" v-model="userMenuOpen" :close-on-content-click="false">
+                  <template #activator="{ props }">
+                    <v-btn
+                      v-bind="props"
+                      variant="outlined"
+                      class="user-btn"
+                    >
+                      <i class="fas fa-user mr-2"/>
+                      <span v-if="user && user.isAnonymous">
                         Setup Profile
-                      </v-btn>
+                        <span class="notification-dot"/>
+                      </span>
+                      <span v-else>Login</span>
+                    </v-btn>
+                  </template>
 
-                      <v-btn
-                        block
-                        text
-                        class="mt-2"
-                        @click="userMenuOpen = false"
-                      >
-                        Continue as Guest
-                      </v-btn>
-                    </template>
+                  <v-card min-width="300">
+                    <v-card-title>
+                      <template v-if="user && user.isAnonymous">Account Setup</template>
+                      <template v-else>Login</template>
+                    </v-card-title>
 
-                    <!-- Show login for non-users -->
-                    <template v-else>
-                      <!-- Login form -->
-                      <p class="mb-4">
-                        Enter your email to sign in or create an account:
-                      </p>
-
-                      <div v-if="error" class="error-message mb-2">{{ error }}</div>
-
-                      <v-form @submit.prevent="handleLogin">
-                        <v-text-field
-                          v-model="email"
-                          label="Email"
-                          type="email"
-                          required
-                          variant="outlined"
-                          density="compact"
-                        />
+                    <v-card-text>
+                      <!-- Show profile setup for anonymous users -->
+                      <template v-if="user && user.isAnonymous">
+                        <!-- Anonymous user info -->
+                        <div class="user-info">
+                          <div class="status-banner mb-3">
+                            <v-chip color="warning" size="small">Temporary Account</v-chip>
+                            <p class="mt-2">Complete your profile to save your progress</p>
+                          </div>
+                        </div>
 
                         <!-- Simplified theme selection -->
                         <div class="theme-selector">
@@ -149,28 +99,92 @@
 
                         <v-btn
                           block
-                          type="submit"
                           color="primary"
-                          :loading="isAuthLoading"
                           class="mt-4"
+                          to="/profile"
                         >
-                          Send Login Link
+                          Setup Profile
                         </v-btn>
 
                         <v-btn
                           block
-                          variant="outlined"
+                          text
                           class="mt-2"
-                          :disabled="isAuthLoading"
-                          @click="loginAnonymously"
+                          @click="userMenuOpen = false"
                         >
                           Continue as Guest
                         </v-btn>
-                      </v-form>
-                    </template>
-                  </v-card-text>
-                </v-card>
-              </v-menu>
+                      </template>
+
+                      <!-- Show login for non-users -->
+                      <template v-else>
+                        <!-- Login form -->
+                        <p class="mb-4">
+                          Enter your email to sign in or create an account:
+                        </p>
+
+                        <div v-if="error" class="error-message mb-2">{{ error }}</div>
+
+                        <v-form @submit.prevent="handleLogin">
+                          <v-text-field
+                            v-model="email"
+                            label="Email"
+                            type="email"
+                            required
+                            variant="outlined"
+                            density="compact"
+                          />
+
+                          <!-- Simplified theme selection -->
+                          <div class="theme-selector">
+                            <v-select
+                              v-model="currentTheme"
+                              label="Theme"
+                              :items="availableThemes"
+                              item-title="label"
+                              item-value="name"
+                              variant="outlined"
+                              density="compact"
+                              @update:model-value="setAppTheme"
+                            />
+                          </div>
+
+                          <v-btn
+                            block
+                            type="submit"
+                            color="primary"
+                            :loading="isAuthLoading"
+                            class="mt-4"
+                          >
+                            Send Login Link
+                          </v-btn>
+
+                          <v-btn
+                            block
+                            variant="outlined"
+                            class="mt-2"
+                            :disabled="isAuthLoading"
+                            @click="loginAnonymously"
+                          >
+                            Continue as Guest
+                          </v-btn>
+                        </v-form>
+                      </template>
+                    </v-card-text>
+                  </v-card>
+                </v-menu>
+                <template #fallback>
+                  <!-- Simple fallback during SSR/hydration -->
+                  <v-btn
+                    variant="outlined"
+                    class="user-btn"
+                    :disabled="true"
+                  >
+                    <i class="fas fa-user mr-2"/>
+                    <span>Login</span>
+                  </v-btn>
+                </template>
+              </ClientOnly>
             </div>
           </div>
         </div>
@@ -229,7 +243,7 @@ import { useAppTheme } from '~/composables/useTheme';
 import { useAuth } from '~/composables/useAuth';
 import { useHead } from '#imports';
 
-// Get theme utilities from our composable
+// Get theme utilities from our simplified composable
 const {
   currentTheme,
   isDark: isDarkTheme,
@@ -251,10 +265,13 @@ const showSessionRecovery = ref(false)
 const recoveryEmail = ref('')
 const lastStoredAuthState = ref(false)
 
+// Disable theme toggle button during hydration to prevent mismatches
+const isHydrating = ref(true)
+
 // Add basic head management for improved SEO and social sharing
 useHead({
   htmlAttrs: {
-    // This will be applied during SSR and hydrated on client
+    // This will be applied during SSR and hydrated on client - using computed to avoid reactivity issues
     class: computed(() => [isDarkTheme.value ? 'dark-theme' : 'light-theme'])
   }
 })
@@ -297,6 +314,11 @@ watch(() => user.value, (newUser) => {
 // Initialize client-side behavior
 onMounted(() => {
   if (import.meta.client) {
+    // Set hydration complete after a short delay to ensure Vuetify has fully hydrated
+    setTimeout(() => {
+      isHydrating.value = false
+    }, 50)
+
     // Check if we're coming from a magic link authentication flow
     const isFromMagicLink = window.location.href.includes('apiKey=') ||
                           window.location.href.includes('mode=');

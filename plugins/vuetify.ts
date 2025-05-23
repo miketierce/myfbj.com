@@ -65,24 +65,39 @@ const fa = {
   },
 } as IconSet
 
+// Create a unique key for SSR theme state that won't conflict with other storage
+const SSR_THEME_KEY = '__NUXT_SSR_THEME__'
+
 export default defineNuxtPlugin((nuxtApp: any) => {
-  // Get theme from SSR context (set by the theme-detection middleware)
-  // This ensures we're using the theme from auth claim when available
+  // IMPORTANT: Determine the theme to use, with proper fallbacks
   let defaultTheme = 'wireframe'
 
   if (process.server) {
-    // Get theme from server context if available (auth claim)
+    // On server side, check for theme in context (from auth claims or cookies)
     if (nuxtApp.ssrContext?.event?.context?.theme) {
       defaultTheme = nuxtApp.ssrContext.event.context.theme
+
+      // Store the SSR theme decision in Nuxt payload to ensure client hydration matches
+      nuxtApp.payload[SSR_THEME_KEY] = defaultTheme
+
+      console.log('SSR determined theme:', defaultTheme)
     }
   } else if (import.meta.client) {
-    // On client-side, check local storage first for saved preference
-    const savedTheme = localStorage.getItem('preferredTheme')
-    if (savedTheme === 'wireframe' || savedTheme === 'wireframeDark') {
-      defaultTheme = savedTheme
+    // On client side, first priority is the SSR payload for proper hydration
+    if (nuxtApp.payload && nuxtApp.payload[SSR_THEME_KEY]) {
+      defaultTheme = nuxtApp.payload[SSR_THEME_KEY]
+      console.log('Using SSR theme from payload:', defaultTheme)
+    }
+    // After hydration has completed, we can use localStorage preference
+    else {
+      const savedTheme = localStorage.getItem('preferredTheme')
+      if (savedTheme === 'wireframe' || savedTheme === 'wireframeDark') {
+        defaultTheme = savedTheme
+      }
     }
   }
 
+  // Create Vuetify instance with the determined theme
   const vuetify = createVuetify({
     theme: {
       defaultTheme,
@@ -91,56 +106,67 @@ export default defineNuxtPlugin((nuxtApp: any) => {
         wireframeDark: wireframeDarkTheme,
       },
     },
-    // Configure Font Awesome icons
     icons: {
       defaultSet: 'fa',
       aliases,
       sets: { fa },
     },
-    // Add default component styles
     defaults: vuetifyConfig.defaults,
   })
 
-  // Provide direct access to Vuetify's theme system
+  // Provide access to Vuetify's theme system
   nuxtApp.provide('vuetifyTheme', vuetify.theme)
 
-  // Simpler theme toggler
+  // Theme toggler
   nuxtApp.provide('toggleTheme', () => {
     const currentTheme = vuetify.theme.global.current.value.name
     const newTheme =
       currentTheme === 'wireframeDark' ? 'wireframe' : 'wireframeDark'
     vuetify.theme.global.name.value = newTheme
 
-    // Save preference
+    // Save preference - only after hydration is complete
     if (import.meta.client) {
       localStorage.setItem('preferredTheme', newTheme)
-      document.documentElement.setAttribute('data-theme', newTheme)
     }
   })
 
-  // Direct theme setter
+  // Theme setter
   nuxtApp.provide('setTheme', (themeName: string) => {
     if (themeName === 'wireframe' || themeName === 'wireframeDark') {
       vuetify.theme.global.name.value = themeName
 
-      // Save preference
+      // Save preference - only after hydration is complete
       if (import.meta.client) {
         localStorage.setItem('preferredTheme', themeName)
-        document.documentElement.setAttribute('data-theme', themeName)
       }
     }
   })
 
-  // Apply initial theme attribute to document for CSS targeting
+  // Only apply client-side specific theme handling after hydration is complete
   if (import.meta.client) {
-    document.documentElement.setAttribute('data-theme', defaultTheme)
-
-    // Apply the theme once DOM is ready
     nuxtApp.hook('app:mounted', () => {
-      document.documentElement.setAttribute(
-        'data-theme',
-        vuetify.theme.global.name.value
-      )
+      // Wait for hydration to complete before checking body background
+      setTimeout(() => {
+        // Just to be safe, validate that body background matches theme
+        const isCurrentlyDark = vuetify.theme.global.current.value.dark
+        const bodyBgColor = isCurrentlyDark ? '#121212' : '#FFFFFF'
+
+        // Only set if needed to avoid unnecessary style mutations
+        if (
+          window.getComputedStyle(document.body).backgroundColor !== bodyBgColor
+        ) {
+          document.body.style.backgroundColor = bodyBgColor
+        }
+
+        // After hydration, it's safe to restore user preferences if they exist
+        const savedTheme = localStorage.getItem('preferredTheme')
+        if (savedTheme && savedTheme !== defaultTheme) {
+          // Use a delay to update the theme after hydration is complete
+          setTimeout(() => {
+            vuetify.theme.global.name.value = savedTheme
+          }, 100)
+        }
+      }, 50)
     })
   }
 
