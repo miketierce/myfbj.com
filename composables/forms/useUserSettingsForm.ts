@@ -1,8 +1,9 @@
 import { ref, computed, watch } from 'vue'
 import { doc, type Firestore } from 'firebase/firestore'
-import { useFirestoreForm } from './useFirestoreForm'
+import { useUnifiedForm } from './useForm' // Use unified form system instead
 import { useAuth } from '../useAuth'
 import { useNuxtApp } from '#app'
+import { useFirebaseApp } from '../utils/useFirebaseApp'
 
 export interface UserSettingsData {
   displayName: string
@@ -25,8 +26,8 @@ export interface UserSettingsFormOptions {
   debounceTime?: number
 }
 
-// Create an interface for Firestore form return type with the properties we need
-interface FirestoreFormType<T> {
+// Create an interface for Form API return type with the properties we need
+interface FormType<T> {
   formData: T
   formErrors: Record<string, string>
   isSubmitting: Ref<boolean>
@@ -50,13 +51,11 @@ interface FirestoreFormType<T> {
 export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
   const { user, updateUserProfile } = useAuth()
   const nuxtApp = useNuxtApp()
+  const { firestore } = useFirebaseApp() // Use the shared Firebase app utilities
 
   // Create our own loading state that we control directly
   const isLoading = ref(false)
   const loadError = ref<string | null>(null)
-
-  // Access Firestore directly from nuxtApp with correct typing
-  const firestore = nuxtApp.$firebaseFirestore as Firestore | null
 
   // Default options
   const {
@@ -67,6 +66,9 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
 
   // Initialize state for tracking last save time
   const lastSaveTime = ref<number | null>(null)
+
+  // Store last loaded data for proper reset functionality
+  const lastLoadedData = ref<UserSettingsData | null>(null)
 
   // Initial state for user settings
   const initialState: UserSettingsData = {
@@ -127,7 +129,7 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
       changedFields: [],
       saveToFirestore: async () => false,
       isLoading: ref(false), // Ensure the placeholder form is not in loading state
-    } as FirestoreFormType<UserSettingsData>
+    } as FormType<UserSettingsData>
   }
 
   // Function to create the form when the user becomes available
@@ -142,7 +144,9 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
     // Set loading state to true while creating form
     isLoading.value = true
 
-    const form = useFirestoreForm<UserSettingsData>({
+    const form = useUnifiedForm<UserSettingsData>({
+      mode: 'firestore',
+      formId: `user-settings-${user.value?.uid || Date.now()}`,
       initialState,
       docRef: userDocRef.value,
       createIfNotExists: true,
@@ -176,7 +180,7 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
           return true
         },
       },
-    }) as unknown as FirestoreFormType<UserSettingsData>
+    }) as unknown as FormType<UserSettingsData>
 
     // Add our custom load handler
     if (form.isLoading) {
@@ -187,6 +191,9 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
           isLoading.value = newVal
           if (!newVal) {
             console.log('Form data loaded successfully')
+
+            // Store a deep copy of the loaded data for proper reset functionality
+            lastLoadedData.value = JSON.parse(JSON.stringify(form.formData))
           }
         },
         { immediate: true }
@@ -195,7 +202,55 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
       // Set loading to false if there's no internal loading state
       setTimeout(() => {
         isLoading.value = false
+
+        // Store a deep copy of the initial data
+        lastLoadedData.value = JSON.parse(JSON.stringify(form.formData))
       }, 1000)
+    }
+
+    // Replace the original resetForm with our improved version
+    const originalResetForm = form.resetForm
+
+    // Create an improved reset function that only resets unsaved changes
+    form.resetForm = () => {
+      if (lastLoadedData.value) {
+        console.log('Resetting form to last loaded state')
+
+        // Keep the email field as is (read-only from Firebase Auth)
+        const emailToPreserve = form.formData.email
+
+        // Handle deep objects like uiPreferences properly
+        const resetData = JSON.parse(JSON.stringify(lastLoadedData.value))
+
+        // Apply the reset data to the form
+        Object.keys(resetData).forEach((key) => {
+          if (key !== 'email') {
+            // For nested objects, do a proper deep copy
+            if (typeof resetData[key] === 'object' && resetData[key] !== null) {
+              form.formData[key] = JSON.parse(JSON.stringify(resetData[key]))
+            } else {
+              form.formData[key] = resetData[key]
+            }
+          }
+        })
+
+        // Make sure email is preserved (it comes from auth, not firestore)
+        form.formData.email = emailToPreserve
+
+        // Clear any form errors
+        Object.keys(form.formErrors).forEach((key) => {
+          form.formErrors[key] = ''
+        })
+
+        // Update form state
+        form.successMessage.value = ''
+        form.errorMessage.value = ''
+
+        return
+      }
+
+      // Fall back to original reset if no last loaded data
+      originalResetForm()
     }
 
     return form

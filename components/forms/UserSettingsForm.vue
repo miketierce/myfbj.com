@@ -1,24 +1,24 @@
 <template>
   <BaseForm
     class="user-settings-form"
-    :formData="formData"
-    :formErrors="formErrors"
-    :isSubmitting="isSubmitting"
-    :isValid="isValid"
-    :successMessage="successMessage"
-    :errorMessage="errorMessage"
-    submitButtonText="Save Settings"
-    :showResetButton="isDirty"
-    resetButtonText="Reset"
+    :form-data="formData"
+    :form-errors="formErrors"
+    :is-submitting="isSubmitting"
+    :is-valid="isValid"
+    :success-message="successMessage"
+    :error-message="errorMessage"
+    submit-button-text="Save Settings"
+    :show-reset-button="isDirty"
+    reset-button-text="Reset"
     @submit="saveSettings"
     @reset="resetForm"
   >
     <template #default>
-      <div class="my-6"> </div>
+      <div class="my-6"/>
 
       <!-- Authentication status message -->
       <v-alert
-        v-if="!isAuthenticated"
+        v-if="!isUserAvailable"
         type="warning"
         class="mb-4"
         text="You must be signed in to manage your settings"
@@ -31,10 +31,10 @@
         <span class="ml-3">Loading user settings...</span>
       </div>
 
-      <!-- Authentication error -->
-      <div v-else-if="error" class="my-4">
+      <!-- Form error -->
+      <div v-else-if="errorMessage" class="my-4">
         <v-alert type="error" variant="tonal">
-          {{ error.message || 'Failed to load user settings' }}
+          {{ errorMessage }}
         </v-alert>
       </div>
 
@@ -45,8 +45,9 @@
           v-model="formData.displayName"
           label="Display Name"
           :error-messages="formErrors.displayName"
-          :disabled="!isAuthenticated || isSubmitting"
+          :disabled="!isUserAvailable || isSubmitting"
           @blur="validateField('displayName')"
+          @update:model-value="onFieldUpdate('displayName')"
         />
 
         <!-- Email (read-only) -->
@@ -63,36 +64,39 @@
           v-model="formData.bio"
           label="Bio"
           :error-messages="formErrors.bio"
-          :disabled="!isAuthenticated || isSubmitting"
+          :disabled="!isUserAvailable || isSubmitting"
           counter="500"
           max-length="500"
           @blur="validateField('bio')"
+          @update:model-value="onFieldUpdate('bio')"
         />
 
         <!-- Notification Toggle -->
         <v-switch
           v-model="formData.notificationsEnabled"
           label="Enable notifications"
-          :disabled="!isAuthenticated || isSubmitting"
+          :disabled="!isUserAvailable || isSubmitting"
           color="primary"
+          @change="onFieldUpdate('notificationsEnabled')"
         />
 
         <!-- UI Preferences Section -->
         <v-expansion-panels variant="accordion" class="mt-4">
-          <v-expansion-panel >
-                    <v-expansion-panel-title>
-          Item
-          <template v-slot:actions="{ expanded }">
-            <v-icon :color="!expanded ? 'primary' : ''" :icon="expanded ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></v-icon>
-          </template>
-        </v-expansion-panel-title>
+          <v-expansion-panel>
+            <v-expansion-panel-title>
+              UI Preferences
+              <template #actions="{ expanded }">
+                <v-icon :icon="expanded ? 'mdi-chevron-up' : 'mdi-chevron-down'"/>
+              </template>
+            </v-expansion-panel-title>
             <v-expansion-panel-text>
               <!-- Font Size -->
               <v-radio-group
                 v-model="formData.uiPreferences.fontSize"
                 label="Font Size"
-                :disabled="!isAuthenticated || isSubmitting"
+                :disabled="!isUserAvailable || isSubmitting"
                 inline
+                @change="onFieldUpdate('uiPreferences')"
               >
                 <v-radio label="Small" value="small" />
                 <v-radio label="Medium" value="medium" />
@@ -103,16 +107,18 @@
               <v-switch
                 v-model="formData.uiPreferences.compactView"
                 label="Compact View"
-                :disabled="!isAuthenticated || isSubmitting"
+                :disabled="!isUserAvailable || isSubmitting"
                 color="primary"
+                @change="onFieldUpdate('uiPreferences')"
               />
 
               <!-- Sidebar Expanded -->
               <v-switch
                 v-model="formData.uiPreferences.sidebarExpanded"
                 label="Sidebar Expanded"
-                :disabled="!isAuthenticated || isSubmitting"
+                :disabled="!isUserAvailable || isSubmitting"
                 color="primary"
+                @change="onFieldUpdate('uiPreferences')"
               />
             </v-expansion-panel-text>
           </v-expansion-panel>
@@ -130,7 +136,7 @@
             variant="tonal"
             size="small"
           >
-            Saved {{ formatSaveTime(lastSaveTime) }}
+            Last saved {{ formatSaveTime(lastSaveTime) }}
           </v-chip>
           <v-chip
             v-else-if="isDirty && !isSubmitting"
@@ -146,16 +152,16 @@
           <v-btn
             color="secondary"
             variant="tonal"
-            :disabled="!isAuthenticated || !isDirty || isSubmitting"
-            @click="reset"
+            :disabled="!isUserAvailable || !isDirty || isSubmitting"
             class="mr-2"
+            @click="reset"
           >
             Reset
           </v-btn>
           <v-btn
             color="primary"
             :loading="submitting"
-            :disabled="!isAuthenticated || !isValid || !isDirty"
+            :disabled="!isUserAvailable || !isValid || !isDirty"
             @click="submit"
           >
             Save Settings
@@ -167,10 +173,37 @@
 </template>
 
 <script setup lang="ts">
-import { useVueFireUserSettingsForm } from '~/composables/forms/useVueFireUserSettingsForm'
+import { onMounted, ref, nextTick } from 'vue'
+import type { Ref } from 'vue'
+import { useUserSettingsForm } from '~/composables/forms/useUserSettingsForm'
+import BaseForm from '~/components/forms/BaseForm.vue'
+
+// Use the existing user settings form composable
+const {
+  formData,
+  formErrors,
+  isSubmitting,
+  isValid,
+  successMessage,
+  errorMessage,
+  validateField,
+  resetForm,
+  isDirty,
+  isLoading,
+  isUserAvailable,
+  lastSaveTime,
+  saveSettings,
+  changedFields = []
+} = useUserSettingsForm({
+  initialSync: true,
+  syncImmediately: true,
+  debounceTime: 1000
+})
 
 // Format save time as "2 minutes ago" etc.
-function formatSaveTime(timestamp: number): string {
+function formatSaveTime(timestamp) {
+  if (!timestamp) return 'never'
+
   const now = Date.now()
   const diff = now - timestamp
 
@@ -196,25 +229,24 @@ function formatSaveTime(timestamp: number): string {
   return `${days} day${days > 1 ? 's' : ''} ago`
 }
 
-// Initialize the form with VueFire integration
-const {
-  formData,
-  formErrors,
-  isSubmitting,
-  isValid,
-  isDirty,
-  isLoading,
-  error,
-  successMessage,
-  errorMessage,
-  isAuthenticated,
-  lastSaveTime,
-  validateField,
-  resetForm,
-  saveSettings,
-} = useVueFireUserSettingsForm({
-  syncImmediately: true,
-  debounceTime: 1000,
+// Handle field updates
+function onFieldUpdate(field) {
+  // No need for special handling as useUserSettingsForm already handles the updates
+  // This function exists to allow for future enhancements if needed
+}
+
+// Set up the form when the component is mounted
+onMounted(() => {
+  if (isUserAvailable) {
+    console.log('Form is ready - user is available')
+  } else {
+    console.log('User not available - form will initialize when user signs in')
+  }
+
+  // Force re-evaluation to prevent hydration mismatch with theme
+  nextTick(() => {
+    console.log('Settings form rehydrated after initial render')
+  })
 })
 </script>
 

@@ -63,7 +63,7 @@ import { useAuth } from '~/composables/useAuth'
 
 const { user } = useAuth()
 const firestore = useFirestore()
-const profileRef = computed(() => user.value ? doc(firestore, 'userProfiles', user.value.uid) : null)
+const profileRef = computed(() => user.value ? doc(firestore, 'users', user.value.uid) : null)
 const { data: profile } = useDocument(profileRef)
 </script>
 ```
@@ -83,7 +83,7 @@ const { $store } = useNuxtApp()
 // Get Firebase services unified across VueFire and direct usage
 const { firestore } = useFirebaseApp()
 const userId = $store.getters['user/currentUser']?.uid || ''
-const userDocRef = userId ? doc(firestore, 'userProfiles', userId) : null
+const userDocRef = userId ? doc(firestore, 'users', userId) : null
 
 // Use the Vuex form system
 const {

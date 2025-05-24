@@ -44,7 +44,7 @@ export function useVueFireProfileForm(options: ProfileFormOptions = {}) {
   // Document reference for user's profile
   const userProfileRef = computed(() => {
     if (!user.value?.uid) return null
-    return doc(firestore, 'userProfiles', user.value.uid)
+    return doc(firestore, 'users', user.value.uid)
   })
 
   // Initial profile state

@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useNuxtApp } from '#app'
 import { useAuth } from './useAuth'
 import { useFetch } from '#app'
@@ -15,6 +15,10 @@ export const useAppTheme = () => {
   const isLoading = ref(false)
   const themeChangeCount = ref(0)
   const error = ref(null)
+  const isHydrated = ref(false)
+
+  // Create a temporary storage for preserving component state during theme changes
+  const statePreservationCache = ref(new Map())
 
   // Get current theme directly from Vuetify
   const currentTheme = computed(() => {
@@ -59,6 +63,25 @@ export const useAppTheme = () => {
     }
   }
 
+  // Helper method to preserve state during theme changes
+  const preserveState = (key: string, state: any) => {
+    statePreservationCache.value.set(key, JSON.parse(JSON.stringify(state)))
+  }
+
+  // Helper method to retrieve preserved state
+  const getPreservedState = (key: string) => {
+    return statePreservationCache.value.get(key)
+  }
+
+  // Clear the preservation cache
+  const clearPreservedState = (key?: string) => {
+    if (key) {
+      statePreservationCache.value.delete(key)
+    } else {
+      statePreservationCache.value.clear()
+    }
+  }
+
   // Toggle between light and dark themes
   const toggleTheme = async () => {
     isLoading.value = true
@@ -84,6 +107,9 @@ export const useAppTheme = () => {
       // Always save to localStorage (for guests and as a fallback)
       if (import.meta.client) {
         localStorage.setItem('preferredTheme', newThemeName)
+
+        // Also set cookie for SSR consistency
+        document.cookie = `preferredTheme=${newThemeName}; path=/; max-age=31536000; SameSite=Lax`
       }
 
       console.log(
@@ -129,6 +155,9 @@ export const useAppTheme = () => {
         // Always save to localStorage (for guests and as a fallback)
         if (import.meta.client) {
           localStorage.setItem('preferredTheme', themeName)
+
+          // Also set cookie for SSR consistency
+          document.cookie = `preferredTheme=${themeName}; path=/; max-age=31536000; SameSite=Lax`
         }
 
         console.log(
@@ -146,13 +175,44 @@ export const useAppTheme = () => {
     }
   }
 
+  // Handle hydration concerns by ensuring client state matches server
+  if (import.meta.client) {
+    onMounted(() => {
+      // Wait for hydration to complete before checking for theme mismatches
+      setTimeout(() => {
+        isHydrated.value = true
+
+        // Try to match stored theme preferences if available
+        const storedTheme = localStorage.getItem('preferredTheme')
+        if (
+          storedTheme &&
+          (storedTheme === 'wireframe' || storedTheme === 'wireframeDark') &&
+          storedTheme !== currentTheme.value
+        ) {
+          console.log(
+            `Correcting theme after hydration from ${currentTheme.value} to ${storedTheme}`
+          )
+          nuxtApp.$setTheme(storedTheme)
+          themeChangeCount.value++
+        }
+      }, 100)
+    })
+  }
+
   return {
     currentTheme,
     isDark,
     isLoading,
     error,
+    isHydrated,
     toggleTheme,
     setTheme,
+    // Add the state preservation helpers
+    preserveState,
+    getPreservedState,
+    clearPreservedState,
+    // Expose themeChangeCount for reactivity
+    themeChangeCount,
     // List available themes for UI selection
     availableThemes: [
       { name: 'wireframe', label: 'Light Theme' },

@@ -77,12 +77,48 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useVueFireProfileForm } from '~/composables/forms/useVueFireProfileForm'
+import { onMounted, computed, ref, watch } from 'vue'
+import { useUnifiedForm } from '~/composables/forms'
+import { useAuth } from '~/composables/useAuth'
+import { doc } from 'firebase/firestore'
+import { useFirebaseApp } from '~/composables/utils/useFirebaseApp'
 import BaseForm from '~/components/forms/BaseForm.vue'
 
-// Initialize the profile form using our VueFire composable
-// This maintains the same behavior as the original ProfileForm but uses VueFire
+// Get authentication and Firestore
+const { user } = useAuth()
+const { firestore } = useFirebaseApp()
+
+// Document reference for profile
+const profileDocRef = computed(() => {
+  if (!user.value?.uid) return null
+  // Use the appropriate collection based on whether the user is anonymous or not
+  const collection = user.value.isAnonymous ? 'anonUsers' : 'users'
+  return doc(firestore, collection, user.value.uid)
+})
+
+// Initial state
+const initialState = {
+  displayName: '',
+  email: '',
+  bio: '',
+  notificationsEnabled: false,
+  createdAt: null,
+  updatedAt: null
+}
+
+// Validation rules
+const validationRules = {
+  displayName: (value: string) => !!value || 'Display name is required',
+  bio: (value: string) => value.length <= 500 || 'Bio must be 500 characters or less'
+}
+
+// Transform before saving (add timestamps)
+const transformBeforeSave = (data: any) => ({
+  ...data,
+  updatedAt: new Date()
+})
+
+// Use the unified form with reactive document reference
 const {
   formData,
   formErrors,
@@ -90,22 +126,80 @@ const {
   isValid,
   successMessage,
   errorMessage,
-  handleSubmit,
   validateField,
   resetForm,
-  loadUserData,
-  isFirestoreMode,
-  savingStatus
-} = useVueFireProfileForm({
-  useFirestore: true,         // Enable Firestore integration
-  syncImmediately: true,      // Sync changes as they happen
-  debounceTime: 1000          // 1 second debounce for text inputs
+  handleSubmit,
+  updateField,
+  updateFields,
+  // Firestore specific features
+  isPendingSave,
+  savingStatus,
+  saveToFirestore,
+  markFieldDirty
+} = useUnifiedForm({
+  mode: 'firestore',
+  initialState,
+  validationRules,
+  // Use a computed for docRef to ensure reactivity
+  get docRef() { return profileDocRef.value },
+  createIfNotExists: true,
+  transformBeforeSave,
+  syncImmediately: true,
+  debounceTime: 1000
 })
 
-// Load existing user data on component mount
-onMounted(async () => {
-  await loadUserData()
+// Flag to track if form is initialized
+const formInitialized = ref(false)
+
+// Use a safer pattern for watching - initialize after mount with a delay
+onMounted(() => {
+  // Mark the form as initialized after a short delay to ensure reactivity setup is complete
+  setTimeout(() => {
+    formInitialized.value = true
+  }, 200)
 })
+
+// Define safe watchers with null/undefined checks using computed properties
+const displayNameWatcher = computed(() => formData?.displayName)
+watch(displayNameWatcher, (newVal) => {
+  if (formInitialized.value && newVal !== undefined) {
+    markFieldDirty('displayName')
+  }
+})
+
+const bioWatcher = computed(() => formData?.bio)
+watch(bioWatcher, (newVal) => {
+  if (formInitialized.value && newVal !== undefined) {
+    markFieldDirty('bio')
+  }
+})
+
+const notificationsWatcher = computed(() => formData?.notificationsEnabled)
+watch(notificationsWatcher, (newVal) => {
+  if (formInitialized.value && newVal !== undefined) {
+    markFieldDirty('notificationsEnabled')
+  }
+})
+
+// For debugging - log when form changes are pending save
+watch(() => isPendingSave.value, (newVal) => {
+  if (newVal && formInitialized.value) {
+    console.log('Form changes pending save')
+  }
+})
+
+// Pre-populate with user data when available
+watch(user, (newUser) => {
+  if (newUser) {
+    updateFields({
+      displayName: newUser.displayName || '',
+      email: newUser.email || ''
+    })
+  }
+}, { immediate: true })
+
+// Define whether we're in Firestore mode (for UI indicators)
+const isFirestoreMode = computed(() => !!profileDocRef.value)
 </script>
 
 <style scoped>

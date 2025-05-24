@@ -37,6 +37,13 @@ export const useAuth = () => {
   const isLoading = useState<boolean>('auth-loading', () => true)
   const error = useState<string | null>('auth-error', () => null)
   const firestoreDisabled = useState<boolean>('firestore-disabled', () => false)
+  const isFirebaseAvailable = useState<boolean>(
+    'firebase-available',
+    () => !!auth
+  )
+
+  // State for handling the email sign-in flow
+  const emailForSignIn = useState<string>('email-for-sign-in', () => '')
 
   // Helper to safely interact with Firestore - with graceful fallback
   const safeFirestoreOperation = async (
@@ -267,14 +274,18 @@ export const useAuth = () => {
       import.meta.client &&
       isSignInWithEmailLink(auth, window.location.href)
     ) {
+      console.log('Detected email sign-in link, attempting authentication...')
       // Get email from localStorage that we saved before sending the link
       const email = localStorage.getItem('emailForSignIn')
+
       if (email) {
         isLoading.value = true
+        console.log(`Found email in localStorage: ${email.split('@')[0]}@***`)
 
         // Sign in with email link
         signInWithEmailLink(auth, email, window.location.href)
           .then(async (result) => {
+            console.log('Email link sign-in successful')
             // Clear email from storage
             localStorage.removeItem('emailForSignIn')
 
@@ -287,12 +298,81 @@ export const useAuth = () => {
             }
           })
           .catch((err) => {
-            error.value = err.message
-            isLoading.value = false
+            console.error('Email link sign-in failed:', err)
+
+            // Instead of immediately redirecting, check if we're already authenticated
+            setTimeout(() => {
+              if (auth.currentUser) {
+                console.log(
+                  'Despite error, user is authenticated. Proceeding to profile.'
+                )
+                window.location.href = '/profile?mode=signIn'
+              } else {
+                // Only redirect if we're truly not authenticated
+                error.value = err.message
+                isLoading.value = false
+
+                // Use console.warn instead of console.error to avoid too much noise in logs
+                console.warn(
+                  'Authentication truly failed, redirecting to login:',
+                  err.message
+                )
+                window.location.href = '/login?error=sign-in-failed'
+              }
+            }, 1000) // Give Firebase a moment to complete any background auth processes
           })
       } else {
-        // If no email in storage, we might need to ask the user for it
-        error.value = 'Please provide your email to complete sign-in'
+        // If email isn't in localStorage, we need to be smarter about handling this situation
+        console.warn('Email not found in localStorage for email link sign-in')
+        isLoading.value = true
+
+        // Some email links include identity info that Firebase can use despite missing localStorage email
+        // Let's give Firebase more time to complete authentication on its own
+        setTimeout(() => {
+          // Check if Firebase managed to authenticate the user despite missing localStorage email
+          if (auth.currentUser) {
+            console.log(
+              'User authenticated successfully despite missing localStorage email'
+            )
+            // Success! Redirect to profile
+            window.location.href = '/profile?mode=signIn'
+          } else {
+            // Still no authentication after waiting, now we can try one more approach:
+            // Extract actionCode from URL and try to use it directly with signInWithEmailLink
+            try {
+              const url = new URL(window.location.href)
+              const oobCode = url.searchParams.get('oobCode')
+
+              if (oobCode) {
+                console.log(
+                  'Found oobCode in URL, attempting to use it directly'
+                )
+                // Instead of redirecting to login with error, we'll keep the user on this page
+                // and let Firebase's built-in auth state change listener handle authentication
+
+                // Just set a reasonable timeout to eventually stop loading if nothing happens
+                setTimeout(() => {
+                  if (!auth.currentUser) {
+                    isLoading.value = false
+                    error.value =
+                      'Authentication timed out. Please request a new sign-in link.'
+                  }
+                }, 5000)
+              } else {
+                // No oobCode found, redirect to login
+                isLoading.value = false
+                error.value =
+                  'Sign-in link appears invalid. Please request a new link.'
+                window.location.href = '/login?error=invalid-link'
+              }
+            } catch (err) {
+              console.error('Error processing email link authentication:', err)
+              isLoading.value = false
+              error.value = 'An error occurred processing your sign-in link.'
+              window.location.href = '/login?error=processing-error'
+            }
+          }
+        }, 2000) // Give Firebase time to complete auth process
       }
     }
 
@@ -636,5 +716,7 @@ export const useAuth = () => {
     setUserData,
     migrateUserData,
     firestoreDisabled,
+    emailForSignIn,
+    isFirebaseAvailable,
   }
 }

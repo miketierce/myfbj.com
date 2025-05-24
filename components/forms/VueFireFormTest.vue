@@ -8,6 +8,7 @@
         <div v-if="isAuthenticated">
           <p><strong>User ID:</strong> {{ user?.uid }}</p>
           <p><strong>Email:</strong> {{ user?.email }}</p>
+          <p><strong>Auth Status:</strong> {{ user?.isAnonymous ? 'Anonymous' : 'Authenticated' }}</p>
         </div>
         <div v-else>
           <p>No user authenticated. Please sign in.</p>
@@ -43,6 +44,23 @@
         <div v-if="isLoading" class="text-center py-4">
           <v-progress-circular indeterminate color="primary"/>
           <p class="mt-2">Loading profile data...</p>
+        </div>
+
+        <div v-else-if="permissionsError" class="my-4">
+          <v-alert type="warning" border="left" colored-border icon="mdi-alert">
+            <strong>Permission Error:</strong> You don't have permission to access this document.
+            Make sure you have proper Firebase security rules in place.
+
+            <div class="mt-2">
+              <code>{{ permissionsError }}</code>
+            </div>
+
+            <div class="mt-2">
+              <v-btn color="primary" small @click="recreateForm">
+                Retry
+              </v-btn>
+            </div>
+          </v-alert>
         </div>
 
         <v-form v-else @submit.prevent="handleSubmit">
@@ -111,7 +129,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 // Replace useVueFireForm with useUnifiedForm
 import { useUnifiedForm } from '~/composables/forms'
 import { useDocument } from 'vuefire'
@@ -123,6 +141,7 @@ import { useFirebaseApp } from '~/composables/utils/useFirebaseApp'
 const { auth, firestore } = useFirebaseApp()
 const user = computed(() => auth.currentUser)
 const isAuthenticated = computed(() => !!user.value)
+const permissionsError = ref(null)
 
 // Login form data
 const loginForm = ref({
@@ -135,46 +154,103 @@ const authError = ref('')
 // Document reference for the user's profile
 const userDocRef = computed(() => {
   if (!user.value) return null
-  return doc(firestore, 'userProfiles', user.value.uid)
+
+  // Check if user is anonymous - you may need different collections for different user types
+  const collectionName = user.value.isAnonymous ? 'anonymousProfiles' : 'users'
+
+  return doc(firestore, collectionName, user.value.uid)
 })
 
 // Get raw data for display comparison
-const { data: rawData } = useDocument(userDocRef)
+const { data: rawData, error: rawDataError } = useDocument(userDocRef)
 
-// Use our new unified form system with VueFire mode
-const {
-  formData,
-  formErrors,
-  isSubmitting,
-  isLoading,
-  successMessage,
-  errorMessage,
-  validateField,
-  handleSubmit,
-  resetForm,
-  saveToFirestore,
-  savingStatus,
-  isDirty,
-  changedFields
-} = useUnifiedForm({
-  formId: 'profileTest',
-  mode: 'vuefire', // Explicitly setting mode to vuefire
-  docRef: userDocRef.value,
-  initialState: {
-    displayName: '',
-    bio: '',
-    favoriteColor: '',
-  },
-  validationRules: {
-    displayName: (value) => !!value || 'Display name is required',
-    bio: (value) => value.length <= 200 || 'Bio must be 200 characters or less',
-  },
-  transformBeforeSave: (data) => ({
-    ...data,
-    updatedAt: new Date(),
-  }),
-  createIfNotExists: true,
+// Watch for raw data errors (which may occur before the form is created)
+watch(rawDataError, (newError) => {
+  if (newError) {
+    console.error('Raw data error:', newError)
+    permissionsError.value = newError.message
+  }
 })
+
+// Create the form reference and state holder
+const formController = ref(null)
+
+// Function to create/recreate the form
+const createForm = () => {
+  permissionsError.value = null
+
+  // Only create the form if we have a valid user and document reference
+  if (!user.value || !userDocRef.value) {
+    return null
+  }
+
+  try {
+    return useUnifiedForm({
+      formId: 'profileTest',
+      mode: 'vuefire', // Explicitly setting mode to vuefire
+      docRef: userDocRef.value,
+      initialState: {
+        displayName: user.value.displayName || '',
+        bio: '',
+        favoriteColor: '',
+      },
+      validationRules: {
+        displayName: (value) => !!value || 'Display name is required',
+        bio: (value) => value.length <= 200 || 'Bio must be 200 characters or less',
+      },
+      transformBeforeSave: (data) => ({
+        ...data,
+        updatedAt: new Date(),
+      }),
+      createIfNotExists: true,
+    })
+  } catch (error) {
+    console.error('Error creating form:', error)
+    permissionsError.value = error.message
+    return null
+  }
+}
+
+// Public function to recreate the form (useful for retrying after errors)
+const recreateForm = () => {
+  formController.value = createForm()
+}
+
+// Initialize the form
+onMounted(() => {
+  if (isAuthenticated.value) {
+    formController.value = createForm()
+  }
+})
+
+// Watch for authentication changes
+watch(user, (newUser) => {
+  if (newUser) {
+    // User has logged in or changed, recreate the form
+    recreateForm()
+  } else {
+    // User has logged out, reset everything
+    formController.value = null
+    permissionsError.value = null
+  }
+})
+
+// Expose form methods and properties with default values for when the form is not yet created
+const formData = computed(() => formController.value?.formData || {})
+const formErrors = computed(() => formController.value?.formErrors || {})
+const isSubmitting = computed(() => formController.value?.isSubmitting?.value || false)
+const isLoading = computed(() => formController.value?.isLoading?.value || false)
+const successMessage = computed(() => formController.value?.successMessage?.value || '')
+const errorMessage = computed(() => formController.value?.errorMessage?.value || '')
+const isDirty = computed(() => formController.value?.isDirty?.value || false)
+const savingStatus = computed(() => formController.value?.savingStatus?.value || null)
+const changedFields = computed(() => formController.value?.changedFields || [])
+
+// Method proxies
+const validateField = (field) => formController.value?.validateField(field)
+const handleSubmit = () => formController.value?.handleSubmit()
+const resetForm = () => formController.value?.resetForm()
+const saveToFirestore = () => formController.value?.saveToFirestore()
 
 // Format saving status for UI
 const getSavingStatusType = computed(() => {
@@ -200,6 +276,7 @@ const getSavingStatusMessage = computed(() => {
 const handleSignIn = async () => {
   isSigningIn.value = true
   authError.value = ''
+  permissionsError.value = null
 
   try {
     const { email, password } = loginForm.value

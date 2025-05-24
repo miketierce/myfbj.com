@@ -1,31 +1,31 @@
-import { ref, computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { doc } from 'firebase/firestore'
 import { useUnifiedForm } from '../useForm'
-import { useAuth } from '../../useAuth'
-import { useFirebaseApp } from '../../utils/useFirebaseApp'
-import type { FormOptions, FirestoreFormAPI } from '../types'
+import { useAuth } from '~/composables/useAuth'
+import { useFirebaseApp } from '~/composables/utils/useFirebaseApp'
+import type { FormOptions, FirestoreFormAPI, FormAPI } from '../types'
 
 export interface UserSettingsData {
   displayName: string
-  email: string // Read-only from Firebase Auth
+  email: string
   bio: string
   notificationsEnabled: boolean
   theme: string
-  avatarUrl?: string
-  uiPreferences?: {
-    fontSize?: 'small' | 'medium' | 'large'
-    compactView?: boolean
-    sidebarExpanded?: boolean
+  uiPreferences: {
+    fontSize: string
+    compactView: boolean
+    sidebarExpanded: boolean
+    // Add other UI preferences as needed
   }
-  // Add any other user profile fields
+  // Add other settings as needed
 }
 
 export interface UserSettingsFormOptions {
   mode?: 'standard' | 'firestore' | 'vuefire' | 'vuex'
   formId?: string
-  initialSync?: boolean
-  syncImmediately?: boolean
-  debounceTime?: number
+  initialSync?: boolean // Whether to sync with Firebase Auth on init
+  syncImmediately?: boolean // Whether to sync changes immediately (Firestore modes)
+  debounceTime?: number // Debounce time for Firestore updates
 }
 
 /**
@@ -48,7 +48,10 @@ export interface UserSettingsFormOptions {
  * const settingsForm = useUserSettingsForm({ mode: 'vuex' })
  */
 export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
-  const { user, updateUserProfile } = useAuth()
+  // Get authentication state
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
+
+  // Get Firestore instance
   const { firestore } = useFirebaseApp()
 
   // Create our own loading state that we control directly
@@ -101,7 +104,7 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
   const createPlaceholderForm = () => {
     isLoading.value = false
 
-    const placeholderForm: any = {
+    const placeholderForm: FormAPI<UserSettingsData> = {
       formData: { ...initialState },
       formErrors: {},
       isSubmitting: ref(false),
@@ -111,18 +114,13 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
       handleSubmit: async () => false,
       resetForm: () => {},
       validateField: () => true,
+      validateAllFields: () => true,
       updateField: () => {},
       updateFields: () => {},
-      cleanup: () => {},
       isDirty: computed(() => false),
       changedFields: [],
+      cleanup: () => {},
     }
-
-    // Add Firestore-specific properties for API compatibility
-    placeholderForm.saveToFirestore = async () => false
-    placeholderForm.isPendingSave = ref(false)
-    placeholderForm.savingStatus = ref('unchanged')
-    placeholderForm.lastSaveTime = ref(null)
 
     return placeholderForm
   }
@@ -157,6 +155,8 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
       docRef: userDocRef.value,
       validationRules,
       createIfNotExists: true,
+      syncImmediately,
+      debounceTime,
       transformBeforeSave: (data) => {
         const cleaned: Record<string, any> = {}
         for (const [key, value] of Object.entries(data)) {
@@ -171,7 +171,6 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
     const form = useUnifiedForm<UserSettingsData>(formOptions)
 
     // Set loading state based on form initialization
-    // For Firestore-based forms, they have their own loading state
     if ('isLoading' in form) {
       const firestoreForm = form as FirestoreFormAPI<UserSettingsData> & {
         isLoading?: any
@@ -333,6 +332,62 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
     }
   }, 5000)
 
+  // Format save time as "2 minutes ago" etc.
+  const formatSaveTime = (timestamp: number | null): string => {
+    if (!timestamp) return 'never'
+
+    const now = Date.now()
+    const diff = now - timestamp
+
+    // Less than a minute
+    if (diff < 60 * 1000) {
+      return 'just now'
+    }
+
+    // Minutes
+    if (diff < 60 * 60 * 1000) {
+      const minutes = Math.floor(diff / (60 * 1000))
+      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`
+    }
+
+    // Hours
+    if (diff < 24 * 60 * 60 * 1000) {
+      const hours = Math.floor(diff / (60 * 60 * 1000))
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`
+    }
+
+    // Days
+    const days = Math.floor(diff / (24 * 60 * 60 * 1000))
+    return `${days} day${days > 1 ? 's' : ''} ago`
+  }
+
+  // Compute overall loading state
+  const isLoading = computed(
+    () =>
+      authLoading.value ||
+      !formReady.value ||
+      (form as FirestoreFormAPI<any>).isLoading?.value
+  )
+
+  // Create error object for compatibility with template
+  const error = computed(() =>
+    form.errorMessage.value ? { message: form.errorMessage.value } : null
+  )
+
+  // Methods to expose
+  const setupForm = () => {
+    // Pre-populate with user data when available
+    if (user.value && isAuthenticated.value) {
+      form.updateFields({
+        email: user.value.email || '',
+        displayName: user.value.displayName || '',
+      })
+
+      // Mark form as ready
+      formReady.value = true
+    }
+  }
+
   // Return combined form interface
   return {
     ...settingsForm,
@@ -343,5 +398,10 @@ export function useUserSettingsForm(options: UserSettingsFormOptions = {}) {
     loadError,
     lastSaveTime,
     isFirestoreForm: isFirestoreForm.value,
+    formatSaveTime,
+    error,
+    isAuthenticated,
+    setupForm,
+    formReady,
   }
 }

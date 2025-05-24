@@ -345,7 +345,7 @@ Then use `firestoreAction` normally in your store modules:
 ```js
 export const actions = {
   bindProfile: firestoreAction(async function ({ bindFirestoreRef }, userId) {
-    const docRef = doc(firestore, 'userProfiles', userId)
+    const docRef = doc(firestore, 'users', userId)
     await bindFirestoreRef('profile', docRef)
   })
 }
@@ -447,7 +447,7 @@ const { firestore } = useFirebaseApp()
 
 // Create document reference
 const userId = $store.getters['user/currentUser']?.uid
-const userDocRef = userId ? doc(firestore, 'userProfiles', userId) : null
+const userDocRef = userId ? doc(firestore, 'users', userId) : null
 
 // Use Vuex form
 const {

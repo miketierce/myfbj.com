@@ -1,5 +1,9 @@
 import { defineNuxtPlugin, useRuntimeConfig } from '#app'
-import { setPersistence, browserLocalPersistence } from 'firebase/auth'
+import {
+  setPersistence,
+  browserLocalPersistence,
+  onAuthStateChanged,
+} from 'firebase/auth'
 import { useFirebaseApp } from '~/composables/utils/useFirebaseApp'
 import { initializeApp } from 'firebase/app'
 
@@ -57,6 +61,35 @@ export default defineNuxtPlugin({
         } catch (error) {
           console.error('Error setting auth persistence:', error)
         }
+      }
+
+      // IMPORTANT: Connect Firebase Auth state to Vuex
+      // This is the critical piece that was missing
+      if (nuxtApp.$store) {
+        console.log('Setting up auth state listener for Vuex synchronization')
+
+        // Set up auth state change listener
+        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+          console.log(
+            'Firebase auth state changed:',
+            firebaseUser
+              ? `user logged in (${firebaseUser.uid})`
+              : 'user logged out'
+          )
+
+          // Dispatch the action to update the Vuex store
+          nuxtApp.$store.dispatch('user/onAuthStateChanged', firebaseUser)
+        })
+
+        // Clean up the listener when the app is unmounted
+        nuxtApp.hook('app:unmounted', () => {
+          console.log('Cleaning up Firebase auth state listener')
+          unsubscribe()
+        })
+      } else {
+        console.warn(
+          'Vuex store not available, cannot sync Firebase auth state'
+        )
       }
     } catch (error) {
       console.error('Error in firebase plugin:', error)

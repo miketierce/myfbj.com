@@ -1,421 +1,254 @@
-import {
-  ref,
-  reactive,
-  computed,
-  watch,
-  onBeforeUnmount,
-  nextTick,
-  toRef,
-} from 'vue'
-import { useDocument, useFirestore } from 'vuefire'
-import { doc, setDoc, updateDoc } from 'firebase/firestore'
-import type { DocumentReference } from 'firebase/firestore'
-import type { FormOptions, FirestoreFormAPI } from '../types'
+import { ref, computed, watch } from 'vue'
+import { useDocument } from 'vuefire'
+import { createStandardAdapter } from './standard-adapter'
+import type { FirestoreFormOptions, VueFireFormAPI } from '../types'
+import { debounce } from 'lodash-es'
+import { serverTimestamp } from 'firebase/firestore'
 
+/**
+ * VueFire form adapter - leverages VueFire's reactive system for Firestore integration
+ */
 export function createVueFireAdapter<T extends Record<string, any>>(
-  options: FormOptions<T>
-): FirestoreFormAPI<T> {
-  // Common form state
-  const formDataRaw = reactive<T>({ ...options.initialState }) as T
-  const formErrorsRaw = reactive<Record<string, string>>({})
-  const isSubmittingRaw = ref(false)
-  const isSubmittedRaw = ref(false)
-  const submitCountRaw = ref(0)
-  const successMessageRaw = ref('')
-  const errorMessageRaw = ref('')
-  const isLoadingRaw = ref(true)
-  const isValidRaw = ref(true)
+  options: FirestoreFormOptions<T>
+): VueFireFormAPI<T> {
+  // Create the base form using standard adapter
+  const baseForm = createStandardAdapter<T>(options)
 
-  // Firestore-specific state
-  const isPendingSaveRaw = ref(false)
-  const loadErrorRaw = ref<string | null>(null)
-  const dirtyFieldsRaw = ref<Set<string>>(new Set())
-  const lastSaveTimeRaw = ref<number | null>(null)
-  const lastChangeTimeRaw = ref<number | null>(null)
-  const originalDataRaw = ref<T>({ ...options.initialState })
-  const savingStatusRaw = ref('unchanged')
+  const {
+    docRef = null,
+    createIfNotExists = false,
+    syncImmediately = false,
+    debounceTime = 1000,
+    progressiveSave = false,
+    excludeFields = [],
+    transformBeforeSave,
+    transformAfterLoad,
+  } = options
 
-  // Get Firestore instance from VueFire
-  const firestore = useFirestore()
+  // Additional VueFire-specific state
+  const isPendingSave = ref(false)
+  const savingStatus = ref<
+    'saving' | 'saved' | 'error' | 'unsaved' | 'pending'
+  >('unsaved')
+  const isLoading = ref(false)
+  const lastSaveTime = ref<number | null>(null)
+  const loadError = ref<string | null>(null)
+  const changedFields: string[] = []
 
-  // Get document reference - either directly passed or constructed
-  const docRef = options.docRef
+  // Track original data for comparison
+  const originalData = ref<T>({ ...options.initialState })
 
-  if (!docRef) {
-    throw new Error('VueFire adapter requires a document reference')
-  }
+  // Use VueFire's useDocument hook for reactive connection to Firestore
+  const vueFireDocRef = computed(() => docRef)
+  const { data: vueFireData, pending, error } = useDocument(vueFireDocRef)
 
-  // Use VueFire's useDocument composable for real-time data binding
-  const { data, pending, error } = useDocument(docRef, {
-    reset: false, // Don't reset to undefined when the document doesn't exist
-  })
+  // Improved dirty tracking that checks actual data differences
+  const isDirty = computed(() => {
+    if (changedFields.length > 0) return true
 
-  // Debounce related
-  let debounceTimeout: NodeJS.Timeout | null = null
-  let consecutiveChanges = 0
+    if (!vueFireData.value) return true
 
-  // Form status computed properties
-  const isDirty = computed(() => dirtyFieldsRaw.value.size > 0)
+    // Check for deep differences
+    for (const key in baseForm.formData) {
+      // Skip excluded fields
+      if (excludeFields.includes(key)) continue
 
-  // Computed property to get array of changed field names
-  const changedFields = computed(() => Array.from(dirtyFieldsRaw.value))
+      const currentValue = baseForm.formData[key]
+      const originalValue = originalData.value[key]
 
-  // Validate a specific field
-  const validateField = (fieldName: string) => {
-    // Skip validation if no rules for this field
-    if (!options.validationRules || !options.validationRules[fieldName]) {
-      delete formErrorsRaw[fieldName]
-      return true
-    }
-
-    const result = options.validationRules[fieldName](formDataRaw[fieldName])
-
-    // If validation returns a string, it's an error message
-    if (typeof result === 'string') {
-      formErrorsRaw[fieldName] = result
-      isValidRaw.value = false
-      return false
-    } else {
-      // Remove error if field is valid
-      delete formErrorsRaw[fieldName]
-
-      // Check if all fields are valid
-      isValidRaw.value = Object.keys(formErrorsRaw).length === 0
-      return true
-    }
-  }
-
-  // Validate all fields
-  const validateAllFields = () => {
-    let allValid = true
-
-    // Skip validation if no rules
-    if (!options.validationRules) {
-      return true
-    }
-
-    // Validate each field with a validation rule
-    for (const fieldName of Object.keys(options.validationRules)) {
-      const isFieldValid = validateField(fieldName)
-      if (!isFieldValid) {
-        allValid = false
+      // Compare with JSON.stringify for complex objects
+      if (JSON.stringify(currentValue) !== JSON.stringify(originalValue)) {
+        return true
       }
     }
 
-    isValidRaw.value = allValid
-    return allValid
-  }
+    return false
+  })
 
-  // Mark a field as dirty (changed from original)
-  const markFieldDirty = (fieldName: string) => {
-    dirtyFieldsRaw.value.add(fieldName)
-    validateField(fieldName)
-    lastChangeTimeRaw.value = Date.now()
-    savingStatusRaw.value = 'unsaved'
+  // Watch VueFire loading state
+  watch(pending, (isPending) => {
+    isLoading.value = isPending
+  })
 
-    // Increment consecutive changes count
-    consecutiveChanges++
-  }
-
-  // Reset form to original/initial state
-  const resetForm = () => {
-    // Reset form data to initial state
-    Object.keys(options.initialState).forEach((key) => {
-      formDataRaw[key as keyof T] = options.initialState[key]
-    })
-
-    // Clear all errors
-    Object.keys(formErrorsRaw).forEach((key) => {
-      delete formErrorsRaw[key]
-    })
-
-    // Reset submission state
-    isSubmittedRaw.value = false
-    successMessageRaw.value = ''
-    errorMessageRaw.value = ''
-
-    // Clear tracking state for Firestore
-    dirtyFieldsRaw.value.clear()
-    isPendingSaveRaw.value = false
-    consecutiveChanges = 0
-    savingStatusRaw.value = 'unchanged'
-
-    // Cancel any pending save
-    if (debounceTimeout) {
-      clearTimeout(debounceTimeout)
-      debounceTimeout = null
+  // Watch VueFire errors
+  watch(error, (newError) => {
+    if (newError) {
+      console.error('VueFire document error:', newError)
+      baseForm.errorMessage.value = newError.message || 'Failed to load data'
+      loadError.value = newError.message || 'Failed to load data'
     }
+  })
+
+  // Watch VueFire data changes and update form
+  watch(
+    vueFireData,
+    (newData) => {
+      if (newData) {
+        // Convert data if needed
+        let formattedData = { ...newData }
+
+        // Apply custom transform if provided
+        if (transformAfterLoad) {
+          formattedData = transformAfterLoad(formattedData)
+        }
+
+        // Only update if we're not currently saving
+        if (savingStatus.value !== 'saving') {
+          // Update form with data from Firestore via VueFire
+          baseForm.updateFields(formattedData as Partial<T>)
+
+          // Store original data for comparison
+          originalData.value = JSON.parse(
+            JSON.stringify({
+              ...options.initialState,
+              ...formattedData,
+            })
+          ) as T
+
+          baseForm.isDirty.value = false
+        }
+      } else if (createIfNotExists && docRef) {
+        // Document doesn't exist but we want to create it
+        saveToFirestore()
+      }
+    },
+    { deep: true }
+  )
+
+  // Handle transformations for saving data
+  const prepareDataForSave = (data: T): Record<string, any> => {
+    let preparedData: Record<string, any> = { ...data }
+
+    // Apply custom transform if provided
+    if (transformBeforeSave) {
+      preparedData = transformBeforeSave(data)
+    }
+
+    // Filter out excluded fields
+    if (excludeFields.length > 0) {
+      excludeFields.forEach((field) => {
+        delete preparedData[field]
+      })
+    }
+
+    // Add timestamp fields
+    preparedData.updatedAt = serverTimestamp()
+
+    // Add createdAt only for new documents
+    if (createIfNotExists && !lastSaveTime.value) {
+      preparedData.createdAt = serverTimestamp()
+    }
+
+    return preparedData
   }
 
-  // Update a single field
-  const updateField = (field: keyof T, value: any) => {
-    formDataRaw[field] = value
-    markFieldDirty(field as string)
-  }
-
-  // Update multiple fields
-  const updateFields = (fields: Partial<T>) => {
-    Object.entries(fields).forEach(([key, value]) => {
-      formDataRaw[key as keyof T] = value
-      markFieldDirty(key)
-    })
-  }
-
-  // Save form data to Firestore
-  const saveToFirestore = async () => {
+  // Save to Firestore using VueFire
+  const saveToFirestore = async (): Promise<boolean> => {
     if (!docRef) {
-      errorMessageRaw.value = 'No document reference provided'
-      isPendingSaveRaw.value = false
-      return false
-    }
-
-    if (dirtyFieldsRaw.value.size === 0) {
-      // No changes to save
-      isPendingSaveRaw.value = false
-      return true
-    }
-
-    // Validate all fields before saving
-    if (!validateAllFields()) {
-      errorMessageRaw.value = 'Please fix validation errors before saving'
-      isPendingSaveRaw.value = false
+      console.warn('Cannot save to Firestore: No document reference provided')
       return false
     }
 
     try {
-      isSubmittingRaw.value = true
-      isPendingSaveRaw.value = false
-      errorMessageRaw.value = ''
-      savingStatusRaw.value = 'saving'
+      isPendingSave.value = false
+      savingStatus.value = 'saving'
 
-      // Create data object with only changed fields
-      const updateData: Partial<T> = {}
+      const dataToSave = prepareDataForSave(baseForm.formData)
 
-      for (const field of dirtyFieldsRaw.value) {
-        updateData[field as keyof T] = formDataRaw[field]
-      }
+      // Determine if document exists
+      const docExists = !!vueFireData.value
 
-      // Transform data before saving if needed
-      const processedData = options.transformBeforeSave
-        ? options.transformBeforeSave({
-            ...updateData,
-          } as T)
-        : updateData
+      if (docExists) {
+        // Use progressive save if enabled
+        if (progressiveSave && changedFields.length > 0) {
+          const updates: Record<string, any> = {}
+          changedFields.forEach((field) => {
+            if (field in dataToSave) {
+              updates[field] = dataToSave[field]
+            }
+          })
 
-      // Check if the document exists using VueFire's data
-      if (data.value) {
-        // Update existing document with changed fields
-        await updateDoc(docRef, processedData)
-      } else if (options.createIfNotExists) {
-        // Create new document - use all form data for initial creation
-        const fullData = options.transformBeforeSave
-          ? options.transformBeforeSave(formDataRaw)
-          : formDataRaw
-        await setDoc(docRef, fullData)
-      } else {
-        throw new Error(
-          'Document does not exist and createIfNotExists is false'
-        )
-      }
-
-      // Update last save time
-      lastSaveTimeRaw.value = Date.now()
-      savingStatusRaw.value = 'saved'
-
-      // Clear dirty fields as they're now saved
-      dirtyFieldsRaw.value.clear()
-
-      // Update original data with new values
-      originalDataRaw.value = JSON.parse(JSON.stringify(formDataRaw))
-
-      successMessageRaw.value = 'Changes saved successfully'
-
-      // Auto-hide success message after 3 seconds
-      setTimeout(() => {
-        if (successMessageRaw.value === 'Changes saved successfully') {
-          successMessageRaw.value = ''
+          // Update document with only changed fields
+          await docRef.update(updates)
+        } else {
+          // Otherwise update the whole document
+          await docRef.update(dataToSave)
         }
-      }, 3000)
+      } else {
+        // Document doesn't exist, create it
+        await docRef.set(dataToSave)
+      }
+
+      // Update status
+      savingStatus.value = 'saved'
+      lastSaveTime.value = Date.now()
+      baseForm.isDirty.value = false
+      changedFields.length = 0 // Clear changed fields
 
       return true
     } catch (error: any) {
       console.error('Error saving to Firestore:', error)
-      errorMessageRaw.value = `Failed to save changes: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`
-      savingStatusRaw.value = 'error'
+      savingStatus.value = 'error'
+      baseForm.errorMessage.value = error.message || 'Failed to save data'
       return false
-    } finally {
-      isSubmittingRaw.value = false
     }
   }
 
-  // Submit form handler
-  const handleSubmit = async () => {
-    isSubmittingRaw.value = true
-    errorMessageRaw.value = ''
-    successMessageRaw.value = ''
-
-    try {
-      // Validate the form first
-      const isFormValid = validateAllFields()
-
-      if (!isFormValid) {
-        errorMessageRaw.value = 'Please fix the form errors before submitting.'
-        isSubmittingRaw.value = false
-        return false
-      }
-
-      // Save any pending changes to Firestore
-      const saveResult = await saveToFirestore()
-      if (!saveResult) {
-        return false
-      }
-
-      let result: { success: boolean; message?: string } | boolean = true
-
-      // Call the submit handler if provided
-      if (options.submitHandler) {
-        result = await options.submitHandler(formDataRaw)
-
-        // Handle result object with success/message properties
-        if (result && typeof result === 'object' && 'success' in result) {
-          if (result.success && result.message) {
-            successMessageRaw.value = result.message
-          } else if (!result.success && result.message) {
-            errorMessageRaw.value = result.message
-            return false
-          }
-        }
-      }
-
-      // Update form state based on submit result
-      isSubmittedRaw.value = true
-      submitCountRaw.value++
-
-      // Reset form if configured to do so
-      if (options.resetAfterSubmit) {
-        resetForm()
-      }
-
-      return result
-    } catch (error: any) {
-      errorMessageRaw.value = error.message || 'An unexpected error occurred'
-      return false
-    } finally {
-      isSubmittingRaw.value = false
+  // Create debounced save function
+  const debouncedSave = debounce(() => {
+    if (isPendingSave.value) {
+      saveToFirestore()
     }
-  }
+  }, debounceTime)
 
-  // INITIALIZATION AND WATCHERS
-  // --------------------------
+  // Mark a field as dirty (for progressive saves)
+  const markFieldDirty = (field: string): void => {
+    if (!changedFields.includes(field)) {
+      changedFields.push(field)
+    }
 
-  // Watch for VueFire document data changes
-  watch(
-    data,
-    (newData) => {
-      if (newData && !isSubmittingRaw.value) {
-        isLoadingRaw.value = false
+    // Update status
+    baseForm.isDirty.value = true
 
-        // Transform data if needed
-        const transformedData = options.transformAfterLoad
-          ? options.transformAfterLoad(newData)
-          : (newData as T)
-
-        // Merge with initial state to ensure we have all required fields
-        const mergedData = { ...options.initialState, ...transformedData }
-
-        // Store fields currently being edited by user
-        const editingFields = new Set(dirtyFieldsRaw.value)
-
-        // Update form data without overwriting fields being edited
-        for (const key in mergedData) {
-          if (!editingFields.has(key)) {
-            formDataRaw[key] = mergedData[key]
-          }
-        }
-
-        // Store the original data
-        originalDataRaw.value = JSON.parse(JSON.stringify(mergedData))
-      }
-    },
-    { immediate: true }
-  )
-
-  // Watch for VueFire loading state
-  watch(pending, (isPending) => {
-    isLoadingRaw.value = isPending
-  })
-
-  // Watch for VueFire errors
-  watch(error, (err) => {
-    if (err) {
-      loadErrorRaw.value = err.message
-      console.error('VueFire document error:', err)
+    if (syncImmediately) {
+      isPendingSave.value = true
+      savingStatus.value = 'pending'
+      debouncedSave()
     } else {
-      loadErrorRaw.value = null
-    }
-  })
-
-  // Set up watchers for form fields
-  const setupFieldWatchers = () => {
-    // Watch each field in the form
-    for (const key in formDataRaw) {
-      watch(
-        () => formDataRaw[key],
-        () => {
-          // Record that this field has changed
-          markFieldDirty(key)
-        },
-        { deep: true }
-      )
+      savingStatus.value = 'unsaved'
     }
   }
 
-  // Set up watchers after next tick to avoid immediate triggers
-  nextTick(() => {
-    setupFieldWatchers()
-  })
+  // Enhance the base submit handler to also save to Firestore
+  const originalSubmit = baseForm.handleSubmit
+  baseForm.handleSubmit = async (): Promise<boolean> => {
+    if (!baseForm.isValid.value) {
+      return false
+    }
 
-  // Clean up function to remove listeners
+    if (docRef) {
+      return saveToFirestore()
+    }
+
+    // Fall back to the original submit if no docRef
+    return originalSubmit()
+  }
+
+  // Enhanced cleanup (no snapshot unsubscribe needed with VueFire)
   const cleanup = () => {
-    // Cancel any pending operations
-    if (debounceTimeout) {
-      clearTimeout(debounceTimeout)
-    }
-
-    isPendingSaveRaw.value = false
-    consecutiveChanges = 0
+    baseForm.cleanup()
   }
 
-  // Clean up on component unmount
-  onBeforeUnmount(() => {
-    cleanup()
-  })
-
-  // Convert reactive objects to refs to match interface
-  const formData = toRef(() => formDataRaw)
-  const formErrors = toRef(() => formErrorsRaw)
-
-  // Return the API with proper Ref types to match the interface
+  // Return enhanced form API
   return {
-    formData,
-    formErrors,
-    isSubmitting: isSubmittingRaw,
-    isValid: isValidRaw,
-    successMessage: successMessageRaw,
-    errorMessage: errorMessageRaw,
-    validateField,
-    validateAllFields,
-    handleSubmit,
-    resetForm,
-    updateField,
-    updateFields,
-    cleanup,
-    // Firestore specific
-    isPendingSave: isPendingSaveRaw,
-    savingStatus: savingStatusRaw,
+    ...baseForm,
     saveToFirestore,
-    lastSaveTime: lastSaveTimeRaw,
+    isPendingSave,
+    savingStatus,
+    markFieldDirty,
+    changedFields,
+    isLoading,
+    lastSaveTime,
+    cleanup,
   }
 }

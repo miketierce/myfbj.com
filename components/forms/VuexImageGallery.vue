@@ -49,9 +49,10 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useStore } from 'vuex';
 import { useAuth } from '~/composables/useAuth';
+import { useAppTheme } from '~/composables/useTheme';
 import ImageGalleryUpload from './ImageGalleryUpload.vue';
 
 // Simple debounce function implementation
@@ -66,6 +67,8 @@ function debounce(func, wait) {
 
 // Get auth state directly
 const { user, isLoading: authLoading } = useAuth();
+// Get theme utilities
+const { preserveState, getPreservedState, clearPreservedState, themeChangeCount } = useAppTheme();
 
 // Props for configuration
 const props = defineProps({
@@ -100,6 +103,9 @@ const isSaving = ref(false);
 const isDirty = ref(false);
 const waitingForAuth = ref(false);
 
+// Define a unique key for this component's state in the preservation cache
+const STATE_CACHE_KEY = 'vuex-image-gallery';
+
 // Get data from Vuex store
 const userProfile = computed(() => store.getters['user/userProfile']);
 const storePublicImages = computed(() => store.getters['user/publicGalleryImages'] || []);
@@ -112,30 +118,69 @@ const localGalleryData = ref({
   mainImageId: null
 });
 
-// Initialize from Vuex store on mounted
-onMounted(() => {
-  // If no public images in store, initialize with empty array
-  if (!storePublicImages.value || storePublicImages.value.length === 0) {
-    localGalleryData.value = {
-      images: [],
-      mainImageId: null
-    };
-  } else {
-    // Load images from Vuex store
+// Initialize gallery data - try loading from preserved state first, then Vuex store
+const initializeGalleryData = () => {
+  // First check if we have preserved state from a theme change
+  const preservedData = getPreservedState(STATE_CACHE_KEY);
+
+  if (preservedData) {
+    console.log('Restoring gallery from preserved state:', preservedData);
+    localGalleryData.value = preservedData;
+    // Clear the preserved state after using it
+    clearPreservedState(STATE_CACHE_KEY);
+  } else if (storePublicImages.value && storePublicImages.value.length > 0) {
+    // If no preserved state, load from Vuex store
+    console.log('Loading gallery from Vuex store:', storePublicImages.value.length, 'images');
     localGalleryData.value = {
       images: [...storePublicImages.value],
       mainImageId: storeMainImageId.value
+    };
+  } else {
+    // If no images in Vuex store, initialize with empty array
+    console.log('Initializing empty gallery');
+    localGalleryData.value = {
+      images: [],
+      mainImageId: null
     };
   }
 
   // Mark as clean since we just loaded data
   isDirty.value = false;
+};
+
+// Initialize on component mount
+onMounted(() => {
+  initializeGalleryData();
+});
+
+// Preserve state before unmounting
+onBeforeUnmount(() => {
+  // Only preserve state if we have images to preserve
+  if (localGalleryData.value.images.length > 0) {
+    console.log('Preserving gallery state before unmount:', localGalleryData.value.images.length, 'images');
+    preserveState(STATE_CACHE_KEY, localGalleryData.value);
+  }
+});
+
+// Watch for theme changes and preserve state when they occur
+watch(themeChangeCount, (newCount, oldCount) => {
+  if (newCount !== oldCount && localGalleryData.value.images.length > 0) {
+    console.log('Theme changing - preserving gallery state:', localGalleryData.value.images.length, 'images');
+    preserveState(STATE_CACHE_KEY, localGalleryData.value);
+
+    // Force restoration of gallery data after theme change
+    // (using a short timeout to allow for component re-render)
+    setTimeout(() => {
+      initializeGalleryData();
+    }, 100);
+  }
 });
 
 // Watch for changes in Vuex store and update local data if not dirty or saving
 watch([storePublicImages, storeMainImageId], ([newImages, newMainId]) => {
   // Only update local data if we're not in the middle of editing or saving
-  if (!isDirty.value && !isSaving.value) {
+  // and if we actually have images from the store
+  if (!isDirty.value && !isSaving.value && newImages && newImages.length > 0) {
     localGalleryData.value = {
       images: [...newImages],
       mainImageId: newMainId
@@ -153,6 +198,8 @@ const debouncedSave = debounce(async () => {
 // Handle changes in gallery data with auto-save
 const handleGalleryChange = () => {
   isDirty.value = true;
+  // Preserve the current state in case of a theme change
+  preserveState(STATE_CACHE_KEY, localGalleryData.value);
   // Trigger debounced save
   debouncedSave();
 };

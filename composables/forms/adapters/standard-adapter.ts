@@ -1,193 +1,230 @@
-import { ref, reactive, computed, onBeforeUnmount, toRef } from 'vue'
-import type { FormOptions, FormAPI } from '../types'
+import { reactive, ref, watch, computed } from 'vue'
+import type { BaseFormOptions, FormAPI, SubmitResult } from '../types'
 
+/**
+ * Standard form adapter - provides basic form functionality without external storage
+ * This serves as the foundation for all other adapters
+ */
 export function createStandardAdapter<T extends Record<string, any>>(
-  options: FormOptions<T>
+  options: BaseFormOptions<T>
 ): FormAPI<T> {
-  // Common form state
-  const formDataRaw = reactive<T>({ ...options.initialState }) as T
-  const formErrorsRaw = reactive<Record<string, string>>({})
-  const isSubmittingRaw = ref(false)
-  const isSubmittedRaw = ref(false)
-  const submitCountRaw = ref(0)
-  const successMessageRaw = ref('')
-  const errorMessageRaw = ref('')
+  const {
+    initialState,
+    validationRules = {},
+    submitHandler,
+    resetAfterSubmit = false,
+  } = options
+
+  // Create reactive state
+  const formData = reactive<T>({ ...initialState }) as T
+  const formErrors = reactive<Record<string, string>>({})
   const touchedFields = reactive<Record<string, boolean>>({})
-  const isValidRaw = ref(true)
+  const isSubmitting = ref(false)
+  const isSubmitted = ref(false)
+  const submitCount = ref(0)
+  const successMessage = ref('')
+  const errorMessage = ref('')
+  const isDirty = ref(false)
 
-  // Form status computed property
-  const isDirty = computed(() => {
-    return Object.keys(formDataRaw).some(
-      (key) => formDataRaw[key] !== options.initialState[key]
-    )
+  // Computed valid state based on errors
+  const isValid = computed(() => {
+    return Object.values(formErrors).every((error) => !error)
   })
 
-  // Computed property to get array of changed field names
-  const changedFields = computed(() => {
-    return Object.keys(formDataRaw).filter(
-      (key) => formDataRaw[key] !== options.initialState[key]
-    )
-  })
+  // Method to validate a specific field
+  const validateField = (field: string): boolean => {
+    // Mark field as touched when validated
+    touchedFields[field] = true
 
-  // Validate a specific field
-  const validateField = (fieldName: string) => {
-    // Skip validation if no rules for this field
-    if (!options.validationRules || !options.validationRules[fieldName]) {
-      delete formErrorsRaw[fieldName]
+    // Clear previous error for this field
+    formErrors[field] = ''
+
+    // Skip validation if no rule exists for this field
+    if (!validationRules[field]) {
       return true
     }
 
-    const result = options.validationRules[fieldName](formDataRaw[fieldName])
+    // Apply the validation rule
+    const result = validationRules[field](formData[field])
 
-    // If validation returns a string, it's an error message
+    // Handle boolean and string results
     if (typeof result === 'string') {
-      formErrorsRaw[fieldName] = result
-      isValidRaw.value = false
+      formErrors[field] = result
       return false
-    } else {
-      // Remove error if field is valid
-      delete formErrorsRaw[fieldName]
-
-      // Check if all fields are valid
-      isValidRaw.value = Object.keys(formErrorsRaw).length === 0
-      return true
+    } else if (result === false) {
+      formErrors[field] = `Invalid ${field}`
+      return false
     }
+
+    // Field is valid
+    return true
   }
 
-  // Validate all fields
-  const validateAllFields = () => {
+  // Validate all fields with rules
+  const validateAllFields = (): boolean => {
     let allValid = true
 
-    // Skip validation if no rules
-    if (!options.validationRules) {
-      return true
-    }
+    // Apply validation to each field that has a rule
+    Object.keys(validationRules).forEach((field) => {
+      // Skip fields that don't exist in the form data
+      if (!(field in formData)) return
 
-    // Validate each field with a validation rule
-    for (const fieldName of Object.keys(options.validationRules)) {
-      const isFieldValid = validateField(fieldName)
-      if (!isFieldValid) {
+      // Mark all fields as touched during full validation
+      touchedFields[field] = true
+
+      // Validate the field and track overall validity
+      const fieldValid = validateField(field)
+      if (!fieldValid) {
         allValid = false
       }
-    }
+    })
 
-    isValidRaw.value = allValid
     return allValid
   }
 
-  // Reset form to original/initial state
-  const resetForm = () => {
-    // Reset form data to initial state
-    Object.keys(options.initialState).forEach((key) => {
-      formDataRaw[key as keyof T] = options.initialState[key]
+  // Reset form to initial state
+  const resetForm = (): void => {
+    // Reset form data to initial values
+    Object.keys(formData).forEach((key) => {
+      if (key in initialState) {
+        formData[key] = initialState[key]
+      }
     })
 
-    // Clear all errors
-    Object.keys(formErrorsRaw).forEach((key) => {
-      delete formErrorsRaw[key]
+    // Clear validation errors
+    Object.keys(formErrors).forEach((key) => {
+      formErrors[key] = ''
     })
 
-    // Reset submission state
-    isSubmittedRaw.value = false
-    successMessageRaw.value = ''
-    errorMessageRaw.value = ''
-
-    // Reset touch state for standard forms
+    // Reset touch state for all fields
     Object.keys(touchedFields).forEach((key) => {
       touchedFields[key] = false
     })
+
+    // Reset status
+    isSubmitted.value = false
+    successMessage.value = ''
+    errorMessage.value = ''
+    isDirty.value = false
   }
 
-  // Update a single field
-  const updateField = (field: keyof T, value: any) => {
-    formDataRaw[field] = value
-    touchedFields[field as string] = true
-    validateField(field as string)
-  }
+  // Update a single field value
+  const updateField = (field: string, value: any): void => {
+    if (field in formData) {
+      formData[field] = value
+      isDirty.value = true
 
-  // Update multiple fields
-  const updateFields = (fields: Partial<T>) => {
-    Object.entries(fields).forEach(([key, value]) => {
-      formDataRaw[key as keyof T] = value
-      touchedFields[key] = true
-      validateField(key)
-    })
-  }
+      // Mark field as touched when updated
+      touchedFields[field] = true
 
-  // Submit form handler
-  const handleSubmit = async () => {
-    isSubmittingRaw.value = true
-    errorMessageRaw.value = ''
-    successMessageRaw.value = ''
-
-    try {
-      // Validate the form first
-      const isFormValid = validateAllFields()
-
-      if (!isFormValid) {
-        errorMessageRaw.value = 'Please fix the form errors before submitting.'
-        return false
+      // Optionally validate on change
+      if (validationRules[field]) {
+        validateField(field)
       }
-
-      let result: { success: boolean; message?: string } | boolean = true
-
-      // Call the submit handler if provided
-      if (options.submitHandler) {
-        result = await options.submitHandler(formDataRaw)
-
-        // Handle result object with success/message properties
-        if (result && typeof result === 'object' && 'success' in result) {
-          if (result.success && result.message) {
-            successMessageRaw.value = result.message
-          } else if (!result.success && result.message) {
-            errorMessageRaw.value = result.message
-            return false
-          }
-        }
-      }
-
-      // Update form state based on submit result
-      isSubmittedRaw.value = true
-      submitCountRaw.value++
-
-      // Reset form if configured to do so
-      if (options.resetAfterSubmit) {
-        resetForm()
-      }
-
-      return result
-    } catch (error: any) {
-      errorMessageRaw.value = error.message || 'An unexpected error occurred'
-      return false
-    } finally {
-      isSubmittingRaw.value = false
     }
   }
 
-  // Clean up on component unmount
-  const cleanup = () => {
-    // Clean up method for standard form (minimal cleanup needed)
+  // Update multiple fields at once
+  const updateFields = (fields: Partial<T>): void => {
+    Object.entries(fields).forEach(([key, value]) => {
+      if (key in formData) {
+        formData[key as keyof T] = value
+
+        // Mark updated fields as touched
+        touchedFields[key] = true
+      }
+    })
+
+    isDirty.value = true
   }
 
-  onBeforeUnmount(() => {
-    cleanup()
-  })
+  // Handle form submission
+  const handleSubmit = async (): Promise<boolean> => {
+    // Clear previous messages
+    successMessage.value = ''
+    errorMessage.value = ''
 
-  // Convert reactive objects to refs to match the interface
-  const formData = toRef(() => formDataRaw)
-  const formErrors = toRef(() => formErrorsRaw)
+    // Validate all fields first
+    const isFormValid = validateAllFields()
 
-  // Return the API with proper Ref types to match the interface
+    if (!isFormValid) {
+      errorMessage.value = 'Please fix the errors in the form'
+      return false
+    }
+
+    // Set submission state
+    isSubmitting.value = true
+
+    try {
+      // Increment submit count
+      submitCount.value++
+      isSubmitted.value = true
+
+      // Use custom submit handler if provided
+      if (submitHandler) {
+        const result = await Promise.resolve(submitHandler(formData))
+
+        // Handle submission result
+        if (result.success) {
+          successMessage.value = result.message || 'Form submitted successfully'
+
+          // Reset after submit if configured
+          if (resetAfterSubmit) {
+            resetForm()
+          } else {
+            isDirty.value = false
+          }
+
+          return true
+        } else {
+          errorMessage.value = result.message || 'Form submission failed'
+          return false
+        }
+      }
+
+      // Default success behavior if no custom handler
+      successMessage.value = 'Form submitted successfully'
+      isDirty.value = false
+      return true
+    } catch (error: any) {
+      // Handle errors during submission
+      console.error('Form submission error:', error)
+      errorMessage.value =
+        error.message || 'An error occurred during submission'
+      return false
+    } finally {
+      isSubmitting.value = false
+    }
+  }
+
+  // Cleanup function for component unmount
+  const cleanup = () => {
+    // Nothing to clean up in standard adapter
+  }
+
+  // Watch for changes to mark form as dirty
+  watch(
+    formData,
+    () => {
+      isDirty.value = true
+    },
+    { deep: true }
+  )
+
   return {
     formData,
     formErrors,
-    isSubmitting: isSubmittingRaw,
-    isValid: isValidRaw,
-    successMessage: successMessageRaw,
-    errorMessage: errorMessageRaw,
+    touchedFields,
+    isSubmitting,
+    isSubmitted,
+    submitCount,
+    isValid,
+    successMessage,
+    errorMessage,
+    isDirty,
+    handleSubmit,
     validateField,
     validateAllFields,
-    handleSubmit,
     resetForm,
     updateField,
     updateFields,

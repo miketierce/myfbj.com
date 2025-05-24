@@ -116,9 +116,9 @@ import { useNuxtApp } from '#app'
 // Get Vuex store
 const { $store } = useNuxtApp()
 
-// User authentication state
-const currentUser = computed(() => $store.state.user?.currentUser || null)
-const isUserAuthenticated = computed(() => !!currentUser.value)
+// Fix: Correctly access user data from Vuex store using the proper getters
+const currentUser = computed(() => $store.getters['user/currentUser'])
+const isUserAuthenticated = computed(() => $store.getters['user/isAuthenticated'])
 const loginForm = ref({ email: '', password: '' })
 const isSigningIn = ref(false)
 const authError = ref('')

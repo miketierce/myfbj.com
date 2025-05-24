@@ -47,8 +47,8 @@ export const useProfileForm = (options: ProfileFormOptions = {}) => {
 
   // Initial form state
   const initialState: ProfileFormData = {
-    displayName: user.value?.displayName || '',
-    email: user.value?.email || '',
+    displayName: '',
+    email: '',
     bio: '',
     notificationsEnabled: true,
   }
@@ -110,14 +110,21 @@ export const useProfileForm = (options: ProfileFormOptions = {}) => {
     resetAfterSubmit: false,
     docRef,
     createIfNotExists: true,
+    syncImmediately: options.syncImmediately,
+    debounceTime: options.debounceTime,
+    // Add a timestamp when saving to Firestore
+    transformBeforeSave: (data) => ({
+      ...data,
+      updatedAt: new Date(),
+    }),
   }
 
   // Create the form using our unified system
   const profileForm = useUnifiedForm<ProfileFormData>(formOptions)
 
-  // Load user data for non-Firestore mode (Firestore modes load automatically)
+  // Load user data from auth and Firestore
   const loadUserData = async () => {
-    if (!user.value || useFirestoreMode) return
+    if (!user.value) return
 
     try {
       // Load display name from Firebase Auth
@@ -130,25 +137,26 @@ export const useProfileForm = (options: ProfileFormOptions = {}) => {
         profileForm.formData.email = user.value.email
       }
 
-      // Load additional data from Firestore
-      const userData = await getUserData(user.value.uid, user.value.isAnonymous)
+      // For standard mode, manually load data from Firestore
+      // (Firestore modes handle loading automatically)
+      if (options.mode === 'standard') {
+        const userData = await getUserData(
+          user.value.uid,
+          user.value.isAnonymous
+        )
 
-      if (userData) {
-        // Map Firestore fields to form data
-        if (userData.bio) profileForm.formData.bio = userData.bio
-        if (userData.notificationsEnabled !== undefined) {
-          profileForm.formData.notificationsEnabled =
-            userData.notificationsEnabled
+        if (userData) {
+          // Map Firestore fields to form data
+          if (userData.bio) profileForm.formData.bio = userData.bio
+          if (userData.notificationsEnabled !== undefined) {
+            profileForm.formData.notificationsEnabled =
+              userData.notificationsEnabled
+          }
         }
       }
     } catch (err) {
       console.error('Error loading user data:', err)
     }
-  }
-
-  // Load data immediately for non-Firestore mode
-  if (!useFirestoreMode) {
-    loadUserData()
   }
 
   // Return the form with our additional methods

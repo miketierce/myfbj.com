@@ -536,15 +536,27 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, reactive } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuth } from '../../composables/useAuth';
 import { useAppTheme } from '~/composables/useTheme';
 import { useProfileGallery } from '~/composables/forms/useProfileGallery';
 import UserSettingsForm from '~/components/forms/UserSettingsForm.vue';
 import ImageGalleryUpload from '~/components/forms/ImageGalleryUpload.vue';
 import VuexImageGallery from '~/components/forms/VuexImageGallery.vue';
+import { useHead } from '#imports';
 
 // Auth management and user data
-const { user, isLoading: isAuthLoading, error: authError, convertAnonymousToEmailLink, signOutUser, getUserData, updateUserProfile, firestoreDisabled } = useAuth();
+const {
+  user,
+  isLoading: isAuthLoading,
+  error: authError,
+  convertAnonymousToEmailLink,
+  signOutUser,
+  getUserData,
+  updateUserProfile,
+  firestoreDisabled,
+  isFirebaseAvailable
+} = useAuth();
 
 // Theme management using the simplified useAppTheme composable
 const {
@@ -594,7 +606,7 @@ const {
 // For troubleshooting
 const debugInfo = ref({
   userStatus: 'Checking...',
-  userObj: null,
+  userObj: null as any,
   profileStatus: 'Unknown',
   firestoreStatus: firestoreDisabled.value ? 'Disabled' : 'Enabled',
   lastError: null
@@ -607,6 +619,12 @@ const isValidEmail = computed(() => {
   return verificationEmail.value ? emailRegex.test(verificationEmail.value) : true;
 });
 const isLoading = computed(() => isAuthLoading.value);
+
+// Validate email format
+const isValidMagicLinkEmail = computed(() => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return !magicLinkEmail.value || emailRegex.test(magicLinkEmail.value);
+});
 
 // Watch for changes in preferences to mark as dirty
 watch(preferences, () => {
@@ -646,14 +664,14 @@ const saveGallery = async () => {
 
       // Update the user's profile photo URL and save public gallery images to Firestore
       await updateUserProfile(user.value.uid, {
-        photoURL: data.profileImageUrl,
+        photoURL: data.profileImageUrl || undefined,
         publicGalleryImages: data.publicGalleryImages
       });
 
       // Try to also read back the data to verify it was saved
       setTimeout(async () => {
         try {
-          const userData = await getUserData(user.value.uid, user.value.isAnonymous);
+          const userData = await getUserData(user.value!.uid, user.value!.isAnonymous);
           console.log("User data after save:", {
             hasPublicImages: !!userData?.publicGalleryImages,
             publicImagesCount: userData?.publicGalleryImages?.length || 0,
@@ -708,64 +726,13 @@ const savePreferences = async () => {
   }
 };
 
-// Handle gallery updates
-const handleGalleryUpdate = () => {
-  // This is called when images are uploaded or deleted
-  console.log('Gallery updated:', galleryData.value);
-};
-
-// Update error watcher
-watch(authError, (newError) => {
-  if (newError) {
-    error.value = newError;
-  }
-});
-
-// Update debug info whenever user or error changes
-watch([user, error, firestoreDisabled], async () => {
-  // Update user status
-  if (!user.value) {
-    debugInfo.value.userStatus = 'No user object';
-  } else if (user.value.isAnonymous) {
-    debugInfo.value.userStatus = 'Anonymous user';
-  } else {
-    debugInfo.value.userStatus = 'Authenticated user';
-  }
-
-  // Safe shallow copy of user object for debugging
-  debugInfo.value.userObj = user.value ? {
-    uid: user.value.uid,
-    isAnonymous: user.value.isAnonymous,
-    email: user.value.email,
-    displayName: user.value.displayName,
-    photoURL: user.value.photoURL,
-    emailVerified: user.value.emailVerified
-  } : null;
-
-  // Update Firestore status
-  debugInfo.value.firestoreStatus = firestoreDisabled.value ? 'Disabled' : 'Enabled';
-
-  // Update last error
-  debugInfo.value.lastError = error.value;
-
-  // Check profile data if user exists
-  if (user.value?.uid) {
-    try {
-      const profileData = await getUserData(user.value.uid, user.value.isAnonymous);
-      debugInfo.value.profileStatus = profileData ? 'Profile exists' : 'No profile data';
-    } catch (err: any) {
-      debugInfo.value.profileStatus = `Error: ${err.message}`;
-    }
-  } else {
-    debugInfo.value.profileStatus = 'No user to check profile';
-  }
-});
-
 // Handle initialization and magic link returns
 onMounted(() => {
   // Show special message if coming back from email verification
   if (route.query.mode === 'linkAnonymous') {
     successMessage.value = 'Your account has been successfully verified!';
+  } else if (route.query.mode === 'signIn') {
+    successMessage.value = 'Sign-in successful! Welcome to your profile.';
   }
 
   // Set active tab based on route or user state

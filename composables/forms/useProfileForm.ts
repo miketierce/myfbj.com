@@ -1,5 +1,5 @@
 import { useForm } from './useForm'
-import { useFirestoreForm } from './useFirestoreForm'
+import { useUnifiedForm } from './useForm' // Use unified form system
 import { useValidation } from './useValidation'
 import { useAuth } from '../useAuth'
 import { computed } from 'vue'
@@ -78,15 +78,15 @@ export const useProfileForm = (options: ProfileFormOptions = {}) => {
   }
 
   // Create the appropriate form based on options
-  let profileForm:
-    | ReturnType<typeof useForm<ProfileFormData>>
-    | ReturnType<typeof useFirestoreForm<ProfileFormData>>
+  let profileForm: ReturnType<typeof useUnifiedForm<ProfileFormData>>
 
   if (options.useFirestore && userId.value && firestore) {
     // Use Firestore integration if requested and user is available
     const userDocRef = doc(firestore, 'users', userId.value)
 
-    profileForm = useFirestoreForm<ProfileFormData>({
+    profileForm = useUnifiedForm<ProfileFormData>({
+      mode: 'firestore', // Explicitly set mode to firestore
+      formId: `user-profile-${userId.value}`,
       initialState,
       docRef: userDocRef,
       validationRules,
@@ -99,7 +99,9 @@ export const useProfileForm = (options: ProfileFormOptions = {}) => {
     })
   } else {
     // Fall back to standard form
-    profileForm = useForm<ProfileFormData>({
+    profileForm = useUnifiedForm<ProfileFormData>({
+      mode: 'standard',
+      formId: `user-profile-standard-${Date.now()}`,
       initialState,
       validationRules,
       submitHandler: handleProfileUpdate,

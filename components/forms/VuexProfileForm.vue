@@ -107,7 +107,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useStore } from 'vuex'
 import { doc } from 'firebase/firestore'
-import { useVuexForm } from '~/composables/forms/useVuexForm'
+import { useUnifiedForm } from '~/composables/forms'
 import { useImageCompression } from '~/composables/utils/useImageCompression'
 import { useFirebaseApp } from '~/composables/utils/useFirebaseApp'
 import BaseForm from '~/components/forms/BaseForm.vue'
@@ -124,7 +124,7 @@ const userId = computed(() => store.getters['user/currentUser']?.uid || '')
 // Define Firestore document reference
 const userDocRef = computed(() => {
   if (!userId.value || !firestore) return null
-  return doc(firestore, 'userProfiles', userId.value)
+  return doc(firestore, 'users', userId.value)
 })
 
 // Setup image compression
@@ -132,7 +132,7 @@ const { processProfileImage, isCompressing, error: compressionError } = useImage
 const fileInput = ref<HTMLInputElement | null>(null)
 const avatarPreview = ref<string | null>(null)
 
-// Initialize the profile form using our Vuex form bridge
+// Initialize the profile form using our unified form system with Vuex mode
 const {
   formData,
   formErrors,
@@ -140,15 +140,17 @@ const {
   isValid,
   successMessage,
   errorMessage,
-  handleSubmit,
   validateField,
   resetForm,
+  handleSubmit,
+  updateField,
+  updateFields,
+  // Firestore specific features
   saveToFirestore,
   savingStatus
-} = useVuexForm({
+} = useUnifiedForm({
+  mode: 'vuex',
   formId: 'vuex-profile',
-  useFirestore: true,
-  docRef: userDocRef.value,
   initialState: {
     displayName: store.getters['user/displayName'] || '',
     email: store.getters['user/userEmail'] || '',
@@ -160,20 +162,45 @@ const {
     displayName: (value) => !!value || 'Display name is required',
     bio: (value) => !value || value.length <= 500 || 'Bio must be 500 characters or less'
   },
+  // Use Firestore for persistence
+  docRef: userDocRef.value,
+  createIfNotExists: true,
   // Transform data before saving to add timestamp
   transformBeforeSave: (data) => ({
     ...data,
     lastUpdated: new Date().toISOString()
   }),
-  // After successful submission, update the user profile in Vuex
-  onSuccess: async (data) => {
-    // Update the user profile in Vuex store
-    await store.dispatch('user/updateUserProfile', {
-      displayName: data.displayName,
-      bio: data.bio,
-      photoURL: data.photoURL,
-      notificationsEnabled: data.notificationsEnabled
-    })
+  // Custom submit handler to update Vuex store after successful submission
+  submitHandler: async (data) => {
+    try {
+      // Save to Firestore first
+      const result = await saveToFirestore()
+
+      if (result) {
+        // Then update the user profile in Vuex store
+        await store.dispatch('user/updateUserProfile', {
+          displayName: data.displayName,
+          bio: data.bio,
+          photoURL: data.photoURL,
+          notificationsEnabled: data.notificationsEnabled
+        })
+
+        return {
+          success: true,
+          message: 'Profile updated successfully!'
+        }
+      }
+
+      return {
+        success: false,
+        message: 'Failed to save profile'
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'An error occurred'
+      }
+    }
   }
 })
 
@@ -198,7 +225,7 @@ const handleFileUpload = async (event: Event) => {
       avatarPreview.value = URL.createObjectURL(compressedFile)
 
       // Update form data with the new image
-      formData.value.photoURL = avatarPreview.value
+      updateField('photoURL', avatarPreview.value)
 
       // In a real application, you would upload to Firebase Storage
       // and then set the download URL in formData
@@ -225,18 +252,17 @@ onMounted(async () => {
 
   if (currentUser) {
     // Update form data with user profile information
-    formData.value.email = currentUser.email || ''
-    formData.value.displayName = currentUser.displayName || ''
-
-    if (userProfile) {
-      formData.value.bio = userProfile.bio || ''
-      formData.value.notificationsEnabled = userProfile.notificationsEnabled !== false
-    }
+    updateFields({
+      email: currentUser.email || '',
+      displayName: currentUser.displayName || '',
+      bio: userProfile?.bio || '',
+      notificationsEnabled: userProfile?.notificationsEnabled !== false
+    })
 
     // If user has a profile image, set the preview
     if (currentUser.photoURL) {
       avatarPreview.value = currentUser.photoURL
-      formData.value.photoURL = currentUser.photoURL
+      updateField('photoURL', currentUser.photoURL)
     }
   }
 })
