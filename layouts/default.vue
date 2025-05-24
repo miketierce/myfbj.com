@@ -66,10 +66,10 @@
                   <v-card min-width="300">
                     <v-card-title>
                       <template v-if="user && user.isAnonymous">Account Setup</template>
-                      <template v-else>Login</template>
+                      <template v-if="!user">Login</template>
                     </v-card-title>
 
-                    <v-card-text>
+
                       <!-- Show profile setup for anonymous users -->
                       <template v-if="user && user.isAnonymous">
                         <!-- Anonymous user info -->
@@ -114,113 +114,116 @@
                       </template>
 
                       <!-- Show login for non-users -->
-                      <template v-else>
-                        <!-- Login form -->
-                        <p class="mb-4">
-                          Enter your email to sign in or create an account:
-                        </p>
+                      <template v-if="!user">
+                        <v-card-text>
 
-                        <div v-if="error" class="error-message mb-2">{{ error }}</div>
+                          <!-- Login form -->
+                          <p class="mb-4">
+                            Enter your email to sign in or create an account:
+                          </p>
 
-                        <v-form @submit.prevent="handleLogin">
-                          <v-text-field
-                            v-model="email"
-                            label="Email"
-                            type="email"
-                            required
-                            variant="outlined"
-                            density="compact"
-                          />
+                          <div v-if="error" class="error-message mb-2">{{ error }}</div>
 
-                          <!-- Simplified theme selection -->
-                          <div class="theme-selector">
-                            <v-select
-                              v-model="currentTheme"
-                              label="Theme"
-                              :items="availableThemes"
-                              item-title="label"
-                              item-value="name"
+                          <v-form @submit.prevent="handleLogin">
+                            <v-text-field
+                              v-model="email"
+                              label="Email"
+                              type="email"
+                              required
                               variant="outlined"
                               density="compact"
-                              @update:model-value="setAppTheme"
                             />
+
+                            <!-- Simplified theme selection -->
+                            <div class="theme-selector">
+                              <v-select
+                                v-model="currentTheme"
+                                label="Theme"
+                                :items="availableThemes"
+                                item-title="label"
+                                item-value="name"
+                                variant="outlined"
+                                density="compact"
+                                @update:model-value="setAppTheme"
+                              />
+                            </div>
+
+                            <v-btn
+                              block
+                              color="primary"
+                              class="mt-4"
+                              type="submit"
+                              :loading="isAuthLoading"
+                            >
+                              Continue with Email
+                            </v-btn>
+
+                            <div class="mt-4 text-center">
+                              <v-divider class="mb-4"><span class="mx-2">or</span></v-divider>
+                              <v-btn
+                                block
+                                variant="tonal"
+                                :loading="isAuthLoading"
+                                @click="loginAnonymously"
+                              >
+                                <i class="fas fa-user-secret mr-2" />
+                                Continue as Guest
+                              </v-btn>
+                            </div>
+                          </v-form>
+
+                          <!-- Login success message -->
+                          <v-expand-transition>
+                            <div v-if="showLoginSuccess" class="mt-4">
+                              <v-alert
+                                type="success"
+                                title="Email Link Sent"
+                                text="Check your email for a sign-in link."
+                                variant="tonal"
+                                closable
+                                @click:close="showLoginSuccess = false"
+                              />
+                            </div>
+                          </v-expand-transition>
+                        </v-card-text>
+                      </template>
+                      <!-- Show account actions for authenticated users -->
+                      <template v-if="user && !user.isAnonymous">
+                        <v-card-text>
+                          <div class="user-info mb-4">
+                            <div v-if="user.displayName" class="display-name font-weight-medium">
+                              {{ user.displayName }}
+                            </div>
+                            <div class="email text-subtitle-2 text-grey">{{ user.email }}</div>
                           </div>
+
+                          <v-divider class="mb-4" />
 
                           <v-btn
                             block
                             color="primary"
-                            class="mt-4"
-                            type="submit"
-                            :loading="isAuthLoading"
+                            variant="tonal"
+                            class="mb-2"
+                            to="/profile"
+                            @click="userMenuOpen = false"
                           >
-                            Continue with Email
+                            <i class="fas fa-user-circle mr-2" />
+                            User Profile
                           </v-btn>
 
-                          <div class="mt-4 text-center">
-                            <v-divider class="mb-4"><span class="mx-2">or</span></v-divider>
-                            <v-btn
-                              block
-                              variant="tonal"
-                              :loading="isAuthLoading"
-                              @click="loginAnonymously"
-                            >
-                              <i class="fas fa-user-secret mr-2" />
-                              Continue as Guest
-                            </v-btn>
-                          </div>
-                        </v-form>
-
-                        <!-- Login success message -->
-                        <v-expand-transition>
-                          <div v-if="showLoginSuccess" class="mt-4">
-                            <v-alert
-                              type="success"
-                              title="Email Link Sent"
-                              text="Check your email for a sign-in link."
-                              variant="tonal"
-                              closable
-                              @click:close="showLoginSuccess = false"
-                            />
-                          </div>
-                        </v-expand-transition>
+                          <v-btn
+                            block
+                            color="error"
+                            variant="tonal"
+                            @click="signOutUser"
+                          >
+                            <i class="fas fa-sign-out-alt mr-2" />
+                            Sign Out
+                          </v-btn>
+                        </v-card-text>
                       </template>
-                    </v-card-text>
 
-                    <!-- Show account actions for authenticated users -->
-                    <template v-if="user && !user.isAnonymous">
-                      <v-card-text>
-                        <div class="user-info mb-4">
-                          <div v-if="user.displayName" class="display-name font-weight-medium">
-                            {{ user.displayName }}
-                          </div>
-                          <div class="email text-subtitle-2 text-grey">{{ user.email }}</div>
-                        </div>
 
-                        <v-divider class="mb-4" />
-
-                        <v-btn
-                          block
-                          color="primary"
-                          variant="tonal"
-                          class="mb-2"
-                          to="/profile"
-                          @click="userMenuOpen = false"
-                        >
-                          <i class="fas fa-user-circle mr-2" />
-                          User Profile
-                        </v-btn>
-
-                        <v-btn
-                          block
-                          color="error"
-                          variant="tonal"
-                          @click="signOutUser"
-                        >
-                          <i class="fas fa-sign-out-alt mr-2" />
-                          Sign Out
-                        </v-btn>
-                      </v-card-text>
-                    </template>
                   </v-card>
                 </v-menu>
               </div>
