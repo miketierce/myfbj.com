@@ -73,6 +73,12 @@ The GitHub Actions workflow has been updated to:
    - Clear cache: `firebase emulators:start --import=./.firebase-emulator-data --export-on-exit --clear-targets`
    - Update Java if needed (Firebase emulators require Java)
 
+4. **CI/CD Lockfile Issues**:
+   - If you encounter `ERR_PNPM_OUTDATED_LOCKFILE` errors in CI:
+     - The pipeline is configured to automatically handle lockfile updates
+     - For manual fixes, run `pnpm install` locally with Node 22 and PNPM 8
+     - Or use Docker: `docker run --rm -v $(pwd):/app -w /app node:22-alpine sh -c "npm i -g pnpm@8 && pnpm install"`
+
 ### Compatibility Notes
 
 - **Nuxt 3**: Fully compatible with Node.js 22
