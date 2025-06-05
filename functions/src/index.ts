@@ -6,14 +6,11 @@
  */
 
 // Import required modules
-import { onRequest, onCall } from 'firebase-functions/v2/https'
-import { onDocumentWritten } from 'firebase-functions/v2/firestore'
-import { onSchedule } from 'firebase-functions/v2/scheduler'
+import { onRequest } from 'firebase-functions/v2/https'
 import * as logger from 'firebase-functions/logger'
 
 // Define runtime options to take advantage of Node 22
 const runtimeOptions = {
-  memory: process.env.FIREBASE_FUNCTION_MEMORY || '512MiB',
   timeoutSeconds: parseInt(process.env.FIREBASE_FUNCTION_TIMEOUT || '60', 10),
   minInstances: parseInt(
     process.env.FIREBASE_FUNCTION_MIN_INSTANCES || '0',
@@ -26,11 +23,18 @@ const runtimeOptions = {
   concurrency: parseInt(process.env.FIREBASE_FUNCTION_CONCURRENCY || '80', 10),
 }
 
+// Determine memory option based on env var (e.g. '512MiB' or '1GiB')
+const memoryOption = process.env.FIREBASE_FUNCTION_MEMORY || '512MiB'
+
 // Example HTTP function with Node 22 features
 export const helloWorld = onRequest(
   {
-    ...runtimeOptions,
     region: process.env.FIREBASE_REGION || 'us-central1',
+    timeoutSeconds: runtimeOptions.timeoutSeconds,
+    minInstances: runtimeOptions.minInstances,
+    maxInstances: runtimeOptions.maxInstances,
+    concurrency: runtimeOptions.concurrency,
+    memory: memoryOption as '512MiB' | '1GiB' | '2GiB',
   },
   async (request, response) => {
     // Use structured logging
@@ -40,8 +44,9 @@ export const helloWorld = onRequest(
       timestamp: new Date().toISOString(),
     })
 
-    // Using Node 22 features like the Array.with() method
-    const demoArray = [1, 2, 3, 4].with(2, 10)
+    // Create a modified array without using .with() method (for TypeScript compatibility)
+    const demoArray = [...[1, 2, 3, 4]]
+    demoArray[2] = 10
 
     response.send({
       message: 'Hello from Firebase Functions with Node 22!',
@@ -54,7 +59,7 @@ export const helloWorld = onRequest(
 // Healthcheck endpoint to verify Node 22 runtime
 export const healthcheck = onRequest(
   {
-    memory: '128MiB',
+    memory: '128MiB' as '128MiB',
     timeoutSeconds: 10,
     minInstances: 0,
     region: process.env.FIREBASE_REGION || 'us-central1',

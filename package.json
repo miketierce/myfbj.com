@@ -29,6 +29,8 @@
     "docker:emulators": "docker-compose up firebase",
     "docker:build": "docker-compose run --rm app sh -c \"pnpm build\"",
     "check:node": "node -v && pnpm -v",
+    "check:node22": "node scripts/check-firebase-node22.js",
+    "test:functions": "./test-functions-node22.sh",
     "verify:node22": "node verify-node22.js",
     "monitor:functions": "node monitor-functions.js",
     "monitor:functions:prod": "node monitor-functions.js --project=$(firebase use prod >/dev/null && firebase use | grep -o 'Active Project: .*' | cut -d' ' -f3) --duration=60",

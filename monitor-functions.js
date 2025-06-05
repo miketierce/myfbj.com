@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 
 /**
- * Firebase Function Performance Monitor
+ * Firebase Function Performance Monitor for Node.js 22
  *
  * This script monitors the performance of Firebase Functions
  * running on Node.js 22. It helps track CPU and memory usage,
  * cold starts, and other performance metrics.
  *
  * Usage:
- *   node monitor-functions.js --project=your-project-id
+ *   node monitor-functions.js --project=your-project-id [options]
+ *
+ * Options:
+ *   --project=PROJECT_ID      Firebase project ID
+ *   --duration=MINUTES        Monitoring duration in minutes (default: 30)
+ *   --output=FORMAT           Output format: console, json, csv (default: console)
+ *   --compare-node18          Compare with Node.js 18 baseline (if available)
  */
 
 import { execSync } from 'child_process';

@@ -7,7 +7,8 @@
  * configured for Node 22 with PNPM 8.
  *
  * Usage:
- *   node verify-node22.js
+ *   node verify-node22.js           # Interactive mode
+ *   node verify-node22.js --ci      # CI mode (non-interactive, exits with error code)
  */
 
 import fs from 'node:fs/promises';
