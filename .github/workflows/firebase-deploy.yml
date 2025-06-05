@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      NODE_VERSION: 18
+      NODE_VERSION: 22
 
     steps:
       - name: Checkout repository
@@ -28,7 +28,7 @@ jobs:
       - name: Setup PNPM
         uses: pnpm/action-setup@v2
         with:
-          version: 7.33.7
+          version: 8.15.4
           # Don't run install here
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
@@ -154,6 +154,10 @@ jobs:
           pnpm config set @fortawesome:registry https://npm.fontawesome.com/
           pnpm config set //npm.fontawesome.com/:_authToken ${{ secrets.FONTAWESOME_TOKEN }}
 
+          # PNPM 8 specific settings
+          pnpm config set node-linker hoisted
+          pnpm config set strict-peer-dependencies false
+
           # Verify PNPM configuration
           echo "PNPM configuration verification:"
           pnpm config get @fortawesome:registry || echo "PNPM config not set properly"
@@ -193,9 +197,9 @@ jobs:
           export FIREBASE_FUNCTION_TIMEOUT=$firebase_timeout
           export FIREBASE_FUNCTION_CONCURRENCY=$firebase_concurrency
 
-          # Force Node.js 18
-          export NODE_VERSION=18
-          echo "Building for $ENVIRONMENT environment with Firebase preset using Node.js 18"
+          # Force Node.js 22
+          export NODE_VERSION=22
+          echo "Building for $ENVIRONMENT environment with Firebase preset using Node.js 22"
           pnpm build
         env:
           # Use Firebase preset for Nitro
@@ -224,8 +228,8 @@ jobs:
           echo "Firebase Functions preparation complete"
 
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools@13.0.2
-        # Using v13.0.2 which is the latest version compatible with Node.js 18
+        run: npm install -g firebase-tools@13.48.0
+        # Using v13.48.0 which is compatible with Node.js 22
 
       - name: Deploy to Firebase
         if: github.event_name == 'push'

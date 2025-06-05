@@ -61,7 +61,7 @@
   },
   "functions": {
     "source": ".output/server",
-    "runtime": "nodejs18"
+    "runtime": "nodejs22"
   },
   "storage": {
     "rules": "storage.rules"

@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  app:
+    image: node:22-alpine
+    working_dir: /app
+    environment:
+      - NODE_ENV=development
+      - NODE_OPTIONS=--max-old-space-size=4096
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+      - "24678:24678" # Vite HMR port
+    command: >
+      sh -c "
+        apk add --no-cache curl &&
+        curl -f https://get.pnpm.io/v8.13.1/install.sh | sh - &&
+        export PATH=/root/.local/share/pnpm:$$PATH &&
+        pnpm config set node-linker hoisted &&
+        pnpm config set strict-peer-dependencies false &&
+        pnpm install &&
+        pnpm dev
+      "
+    networks:
+      - app-network
+
+  firebase:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - firebase_node_modules:/app/functions/node_modules
+    ports:
+      - "5000:5000" # Hosting
+      - "5001:5001" # Functions
+      - "8080:8080" # Firestore
+      - "9000:9000" # Realtime DB
+      - "9099:9099" # Auth
+      - "9199:9199" # Storage
+    command: >
+      sh -c "
+        apk add --no-cache curl &&
+        curl -f https://get.pnpm.io/v8.13.1/install.sh | sh - &&
+        export PATH=/root/.local/share/pnpm:$$PATH &&
+        pnpm config set node-linker hoisted &&
+        pnpm config set strict-peer-dependencies false &&
+        npm install -g firebase-tools@13.48.0 &&
+        cd functions && pnpm install && cd .. &&
+        firebase emulators:start --import=./.firebase-emulator-data --export-on-exit
+      "
+    networks:
+      - app-network
+
+volumes:
+  node_modules:
+  firebase_node_modules:
+
+networks:
+  app-network:
+    driver: bridge

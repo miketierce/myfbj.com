@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=3"
+    "node": ">=22.0.0",
+    "pnpm": "^8.0.0"
   },
   "scripts": {
     "build": "nuxt build",
@@ -24,7 +24,19 @@
     "deploy:preview:dev": "dotenv -c dev NITRO_PRESET=firebase nuxt build && firebase use dev && firebase hosting:channel:deploy $(git rev-parse --abbrev-ref HEAD) --expires 7d",
     "emulators": "firebase emulators:start --import=./.firebase-emulator-data --export-on-exit",
     "dev:emulators": "firebase emulators:start --import=./.firebase-emulator-data --export-on-exit & dotenv -c dev FIREBASE_USE_EMULATOR=true nuxt dev",
-    "save:preview-url": "node -e \"const branchName = require('child_process').execSync('git rev-parse --abbrev-ref HEAD', {encoding: 'utf8'}).trim(); console.log('Preview URL: https://'+branchName+'--'+require('./firebase.json').hosting.site+'.web.app');\""
+    "save:preview-url": "node -e \"const branchName = require('child_process').execSync('git rev-parse --abbrev-ref HEAD', {encoding: 'utf8'}).trim(); console.log('Preview URL: https://'+branchName+'--'+require('./firebase.json').hosting.site+'.web.app');\"",
+    "docker:dev": "docker-compose up",
+    "docker:emulators": "docker-compose up firebase",
+    "docker:build": "docker-compose run --rm app sh -c \"pnpm build\"",
+    "check:node": "node -v && pnpm -v",
+    "verify:node22": "node verify-node22.js",
+    "monitor:functions": "node monitor-functions.js",
+    "monitor:functions:prod": "node monitor-functions.js --project=$(firebase use prod >/dev/null && firebase use | grep -o 'Active Project: .*' | cut -d' ' -f3) --duration=60",
+    "monitor:functions:dev": "node monitor-functions.js --project=$(firebase use dev >/dev/null && firebase use | grep -o 'Active Project: .*' | cut -d' ' -f3) --duration=30",
+    "setup": "./setup-dev.sh",
+    "preinstall": "npx only-allow pnpm",
+    "clean": "rm -rf node_modules .nuxt .output .nitro tmp .pnpm-store",
+    "reinstall": "pnpm clean && pnpm install"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",
@@ -38,10 +50,10 @@
     "@unhead/vue": "^2.0.3",
     "better-sqlite3": "^11.10.0",
     "eslint": "^9.0.0",
-    "firebase": "^11.6.1",
+    "firebase": "^11.9.0",
     "firebase-admin": "^13.3.0",
     "firebase-functions": "^6.3.2",
-    "firebase-tools": "13.35.0",
+    "firebase-tools": "^14.6.0",
     "js-image-compressor": "2.0.0",
     "node-gyp": "^11.2.0",
     "nuxt": "^3.17.3",

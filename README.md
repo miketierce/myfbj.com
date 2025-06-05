@@ -713,28 +713,88 @@ For a multi-environment setup with development and production projects:
 2. Add both project IDs to your GitHub secrets
 3. Make sure each service account has access to its respective project
 
-## Known Limitations and Future Upgrades
+## Node.js and Firebase Compatibility
 
-### Node.js 18 and Firebase Tools Compatibility
+### ✨ Now Using Node.js 22! ✨
 
-This project currently uses:
-- Node.js 18 runtime
-- Firebase Tools v13.35.0 (last version supporting Node.js 18)
+This project uses:
+- Node.js 22 runtime
+- PNPM 8 package manager
+- Firebase Tools v13.48.0 (fully compatible with Node.js 22)
+- Firebase Functions v6.4.0+ (supports Node.js 22 runtime)
 
-**Why we're using an older version:**
-1. Firebase Tools v14.0.0+ dropped support for Node.js 18 on March 27, 2025
-2. The project is pinned to Node.js 18 due to compatibility issues between better-sqlite3 and nuxt/content on Node.js 20
-3. This is a temporary solution until the compatibility issues are resolved
+**Key improvements:**
+1. Latest Node.js features and performance improvements
+2. PNPM 8 for faster, more reliable dependency management
+3. Full compatibility with latest Firebase tools and SDKs
+4. Improved development experience with Docker configuration
 
-**Planned upgrade path:**
-- Monitor nuxt/content for updates that resolve better-sqlite3 compatibility with Node.js 20
-- Once resolved, upgrade to:
-  - Node.js 20+
-  - Firebase Tools v14+
-  - Update Firebase functions runtime in firebase.json
+**For detailed migration information:**
+- See [NODE22-MIGRATION.md](NODE22-MIGRATION.md) for complete details on the upgrade
+
+**Quick start:**
+```bash
+# Run the setup script to prepare your development environment
+./setup-dev.sh
+
+# Or use Docker for a consistent development environment
+pnpm docker:dev
+
+# Verify your Node.js 22 + PNPM 8 setup
+pnpm verify:node22
+```
+
+### Node.js 22 Tooling
+
+#### Verification Script
+
+The project includes a verification script to ensure your environment is properly configured for Node.js 22 and PNPM 8:
+
+```bash
+# Run the verification script
+node verify-node22.js
+
+# Or using npm script
+pnpm verify:node22
+```
+
+This script checks:
+- Node.js version (should be 22)
+- PNPM version (should be 8)
+- Firebase configuration (should use Node.js 22 runtime)
+- Package.json engine requirements
+- PNPM configuration files
+
+#### Firebase Functions Performance Monitoring
+
+For production environments, you can monitor Firebase Functions performance with the included monitoring tool:
+
+```bash
+# Basic monitoring (uses current Firebase project)
+node monitor-functions.js
+
+# Specify project ID
+node monitor-functions.js --project=your-project-id
+
+# Specify monitoring duration (in minutes)
+node monitor-functions.js --duration=60
+
+# Specify output format
+node monitor-functions.js --format=json
+```
+
+The monitoring tool provides:
+- Function execution times
+- Cold start detection
+- Error tracking
+- Memory and CPU usage metrics
+- Detailed logs in JSON format
+
+Monitoring data is stored in the `function-metrics` directory for later analysis.
 
 **Reference:**
-- [Firebase Tools v14.0.0 Release Notes](https://github.com/firebase/firebase-tools/releases/tag/v14.0.0)
+- [Node.js 22 Release Notes](https://nodejs.org/en/blog/release/v22.0.0)
+- [Firebase Functions Node.js Runtime](https://firebase.google.com/docs/functions/manage-functions#set_nodejs_version)
 
 ## License
 
