@@ -365,6 +365,47 @@ jobs:
         run: npm install -g firebase-tools@14.6.0
         # Using v14.6.0 which is compatible with Node.js 22
 
+      - name: Set Deploy Targets
+        id: deploy_targets
+        shell: bash
+        run: |
+          firestore_target_arg="firestore"
+          storage_target_arg="storage"
+          hosting_target_arg="hosting"
+          functions_target_arg="functions:server" # Default to production/mainline targets
+
+          # Check if we are in a development environment (any non-master/main branch)
+          if [[ "${{ steps.determine_env.outputs.ENVIRONMENT }}" == "development" ]]; then
+            # The 'configure_firebase' step runs only for 'development' environment.
+            # Its outputs will contain the branch-specific names.
+            dev_hosting_site_id="${{ steps.configure_firebase.outputs.hosting_site_id }}"
+            dev_function_name="${{ steps.configure_firebase.outputs.function_name }}"
+
+            # If dev_hosting_site_id is set (i.e., it's a feature branch, not 'dev' or 'development' branch itself)
+            if [[ -n "$dev_hosting_site_id" ]]; then
+              firestore_target_arg="firestore:$dev_hosting_site_id"
+              storage_target_arg="storage:$dev_hosting_site_id"
+              hosting_target_arg="hosting:$dev_hosting_site_id"
+            fi
+            # else, for 'dev'/'development' branches, hosting_site_id is empty, so we use default targets 'firestore', 'storage', 'hosting'
+
+            # If dev_function_name is set (it should be, e.g., 'server-branch' or 'server' for 'dev' branch)
+            if [[ -n "$dev_function_name" ]]; then
+              functions_target_arg="functions:$dev_function_name"
+            fi
+            # else, it defaults to 'functions:server' (already set)
+          fi
+
+          echo "firestore_target_arg=$firestore_target_arg" >> "$GITHUB_OUTPUT"
+          echo "storage_target_arg=$storage_target_arg" >> "$GITHUB_OUTPUT"
+          echo "hosting_target_arg=$hosting_target_arg" >> "$GITHUB_OUTPUT"
+          echo "functions_target_arg=$functions_target_arg" >> "$GITHUB_OUTPUT"
+
+          echo "Will use Firestore Target: $firestore_target_arg"
+          echo "Will use Storage Target: $storage_target_arg"
+          echo "Will use Hosting Target: $hosting_target_arg"
+          echo "Will use Functions Target: $functions_target_arg"
+
       - name: Deploy to Firebase
         if: github.event_name == 'push'
         run: |
@@ -415,17 +456,17 @@ jobs:
 
           # Deploy each component separately to isolate any issues
           echo "Deploying Firestore rules and indexes..."
-          firebase deploy --only firestore --project $project_id --non-interactive ${{ steps.determine_env.outputs.ENVIRONMENT == "development" && format("--only firestore:{0}", steps.configure_firebase.outputs.hosting_site_id) || "" }} || echo "Firestore rules deployment failed, will try to continue with the rest"
+          firebase deploy --only ${{ steps.deploy_targets.outputs.firestore_target_arg }} --project $project_id --non-interactive || echo "Firestore rules deployment failed, will try to continue with the rest"
 
           echo "Deploying Storage rules..."
-          firebase deploy --only storage --project $project_id --non-interactive ${{ steps.determine_env.outputs.ENVIRONMENT == "development" && format("--only storage:{0}", steps.configure_firebase.outputs.hosting_site_id) || "" }} || echo "Storage rules deployment failed, will try to continue with the rest"
+          firebase deploy --only ${{ steps.deploy_targets.outputs.storage_target_arg }} --project $project_id --non-interactive || echo "Storage rules deployment failed, will try to continue with the rest"
 
           echo "Deploying hosting..."
-          firebase deploy --only hosting${{ steps.determine_env.outputs.ENVIRONMENT == "development" && steps.configure_firebase.outputs.hosting_site_id && format(":{0}", steps.configure_firebase.outputs.hosting_site_id) || "" }} --project $project_id --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
+          firebase deploy --only ${{ steps.deploy_targets.outputs.hosting_target_arg }} --project $project_id --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
 
           # Run our custom script to ensure functions are properly prepared
           echo "Running prepare-functions-deploy script to ensure all dependencies are in place..."
           bash ./scripts/prepare-functions-deploy.sh
 
           echo "Deploying functions..."
-          firebase deploy --only functions:${{ steps.determine_env.outputs.ENVIRONMENT == "development" && steps.configure_firebase.outputs.function_name || "server" }} --project $project_id --non-interactive
+          firebase deploy --only ${{ steps.deploy_targets.outputs.functions_target_arg }} --project $project_id --non-interactive
