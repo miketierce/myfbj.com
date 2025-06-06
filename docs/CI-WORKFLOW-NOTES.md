@@ -21,6 +21,36 @@
    - This prevents any client-side git hooks from running during the push
    - Helps avoid potential issues with CI triggers
 
+## Native Module Installation Fix
+
+**Problem**: Node.js 22 with PNPM 8 was failing to install native modules, specifically:
+- `better-sqlite3` with error `Cannot find module './rc'`
+- `unrs-resolver` with error `Cannot find module './index.js'`
+
+**Root Cause**: Node.js 22 module resolution changes affecting how relative paths in native module wrappers are resolved.
+
+**Solution**:
+
+1. **Early Module Fixes**:
+   - Created `early-module-fix.js` script to run before installation
+   - Creates necessary directories and shim files preemptively
+   - Installs required global packages
+
+2. **Module Shim Strategy**:
+   - Created shim files in place of the expected modules
+   - Created directory structures to support module resolution
+   - Added symlinks where possible to redirect module imports
+
+3. **Comprehensive Fixing Script**:
+   - Enhanced `ci-fix-modules.js` to check multiple possible paths
+   - Added pattern matching to fix different file variations
+   - Implemented multiple fallback strategies
+
+4. **Installation Process Improvements**:
+   - Enhanced error handling and recovery in the safe install process
+   - Added validation steps with detailed logging
+   - Ensured proper cleanup of temporary files
+
 ## Best Practices for CI/CD Workflows
 
 1. **Always use skip CI flags** for automated commits that don't need to trigger builds:
@@ -35,6 +65,11 @@
    - Using meaningful commit detection (e.g., only commit if there are actual changes)
    - Using proper skip CI flags in commit messages
    - Setting conditions on job execution to skip if the commit came from a bot
+
+4. **Handle native module issues** with Node.js version upgrades:
+   - Create early fix scripts that run before dependencies are installed
+   - Use multiple strategies (shims, symlinks, overrides)
+   - Install key packages globally to ensure they're available
 
 ## Testing CI Workflow Changes
 

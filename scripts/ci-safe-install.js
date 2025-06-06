@@ -33,6 +33,40 @@ const runCommand = (cmd, options = {}) => {
   }
 };
 
+// Create module shims for better compatibility
+const createModuleShims = () => {
+  try {
+    log('Creating module shims for better compatibility...');
+
+    // Create directories if they don't exist
+    fs.mkdirSync('node_modules/better-sqlite3/node_modules', { recursive: true });
+    fs.mkdirSync('node_modules/unrs-resolver/node_modules', { recursive: true });
+
+    // Create a shim for rc
+    const rcShimPath = path.join(process.cwd(), 'node_modules', 'better-sqlite3', 'node_modules', 'rc.js');
+    fs.writeFileSync(rcShimPath, `
+// This is a shim for the rc module that is required by better-sqlite3
+// It redirects to the actual rc module
+module.exports = require('rc');
+`);
+    log('✅ Created shim for rc module');
+
+    // Create a shim for napi-postinstall index.js
+    const napiShimPath = path.join(process.cwd(), 'node_modules', 'unrs-resolver', 'node_modules', 'index.js');
+    fs.writeFileSync(napiShimPath, `
+// This is a shim for the napi-postinstall index.js that is required by unrs-resolver
+// It redirects to the actual module
+module.exports = require('@napi-rs/postinstall/index.js');
+`);
+    log('✅ Created shim for napi-postinstall index.js');
+
+    return true;
+  } catch (error) {
+    log(`❌ Error creating shims: ${error.message}`);
+    return false;
+  }
+};
+
 // Main function
 async function main() {
   log('Starting CI safe install process...');
@@ -51,6 +85,13 @@ async function main() {
     // Install node-gyp and prebuild-install globally
     log('Installing global dependencies...');
     runCommand('npm install -g node-gyp@latest prebuild-install@latest');
+
+    // Install RC module globally (needed for better-sqlite3)
+    log('Installing rc module globally...');
+    runCommand('npm install -g rc@1.2.8');
+
+    // Create module shims BEFORE installation
+    createModuleShims();
 
     // First install with nodedir to help native modules
     log('Running initial install with nodedir for native modules...');

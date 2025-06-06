@@ -17,9 +17,12 @@ The migration to Node.js 22 and PNPM 8 has been completed with fixes for all cri
 2. **CI/CD Pipeline**
    - ✅ Fixed GitHub Actions workflow to handle Node.js 22 correctly
    - ✅ Created `ci-fix-modules.js` to address native module resolution issues
+   - ✅ Created `early-module-fix.js` script for preemptive module fixes
    - ✅ Updated workflow to use existing `ci-safe-install.js` script properly
    - ✅ Fixed JSON formatting errors in CI pipeline
    - ✅ Added proper error handling and recovery mechanisms
+   - ✅ Fixed duplicate build issue with proper skip CI tagging
+   - ✅ Added module shims and symlinks for consistent module resolution
 
 3. **Dependencies Updates**
    - ✅ Updated firebase-admin to v12.3.0

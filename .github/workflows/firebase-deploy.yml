@@ -190,34 +190,42 @@ jobs:
           bash ./scripts/ci-prepare-workspace.sh
           echo "Workspace preparation complete"
 
-      - name: Install dependencies and update lockfile
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify package.json
         run: |
           # Verify package.json integrity first
           echo "Verifying package.json format..."
-          cat package.json | node -e "
+          node -e "
+            const fs = require('fs');
             try {
-              const data = '';
-              process.stdin.on('data', chunk => data += chunk);
-              process.stdin.on('end', () => {
-                JSON.parse(data);
-                console.log('✅ package.json is valid JSON');
-              });
+              const data = fs.readFileSync('./package.json', 'utf8');
+              JSON.parse(data);
+              console.log('✅ package.json is valid JSON');
             } catch (e) {
               console.error('❌ Invalid JSON in package.json:', e.message);
               process.exit(1);
             }
           "
 
-          # Pre-install native module dependencies to avoid issues
-          echo "Installing node-gyp and other build tools..."
-          npm install -g node-gyp@latest prebuild-install@latest
-
-          # Ensure the fix modules script is executable
+      - name: Apply early module fixes
+        run: |
+          # Make early module fix script executable
+          echo "Applying early fixes for native modules..."
+          chmod +x ./scripts/early-module-fix.js
           chmod +x ./scripts/ci-fix-modules.js
           chmod +x ./scripts/ci-safe-install.js
 
+          # Run the early fix script to prepare modules
+          node ./scripts/early-module-fix.js
+
+          # Pre-install native module dependencies to avoid issues
+          echo "Installing node-gyp and other build tools..."
+          npm install -g node-gyp@latest prebuild-install@latest @napi-rs/cli
+          npm install -g rc@1.2.8
+
+      - name: Install dependencies and update lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
           # Run the safe install script
           echo "Installing dependencies with safety measures..."
           node ./scripts/ci-safe-install.js

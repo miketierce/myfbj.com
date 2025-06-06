@@ -33,8 +33,19 @@ Created a `ci-fix-modules.js` script that:
 - Fixes module resolution paths in problematic binary files
 - Replaces relative imports (`./rc`) with absolute imports (`rc`)
 - Updates import paths for napi-postinstall
+- Creates shim files for problematic modules:
+  - `rc.js` shim in better-sqlite3/node_modules
+  - `index.js` shim in unrs-resolver/node_modules
 
-### 4. CI Build Process Improvements
+### 4. Enhanced Safe Installation Process
+
+Enhanced the `ci-safe-install.js` script to:
+- Install dependencies globally: node-gyp, prebuild-install, rc
+- Create module shims BEFORE installation to prevent errors
+- Use NodeDIR and other environment variables to help native builds
+- Run the module fix script after installation
+
+### 5. CI Build Process Improvements
 
 Modified the CI build process to:
 - Install the latest node-gyp and prebuild-install globally
