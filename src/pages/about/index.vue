@@ -3,5 +3,5 @@
 </script>
 
 <template>
-  <div>About page content removed due to @nuxt/content removal</div>
+  <div>About page content </div>
 </template>
