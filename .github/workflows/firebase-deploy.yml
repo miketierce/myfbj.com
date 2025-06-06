@@ -21,9 +21,16 @@ jobs:
     env:
       NODE_VERSION: 22
 
+    # Add permissions for writing to the repository
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Setup PNPM
         uses: pnpm/action-setup@v2
@@ -165,6 +172,8 @@ jobs:
           echo "Created FontAwesome npm configuration in all relevant locations"
 
       - name: Install dependencies and update lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Using --no-frozen-lockfile because lockfile might be out of sync with package.json
           pnpm install --no-frozen-lockfile
@@ -180,9 +189,13 @@ jobs:
             if git diff --name-only | grep -q "pnpm-lock.yaml"; then
               echo "Lockfile was updated. Committing changes."
               git config --global user.name "GitHub Actions"
-              git config --global user.email "actions@github.com"
+              git config --global user.email "github-actions@github.com"
               git add pnpm-lock.yaml
               git commit -m "chore: update pnpm-lock.yaml [skip ci]"
+
+              # Push using the token for authentication
+              echo "Pushing changes to repository..."
+              git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
               git push
             else
               echo "No changes to the lockfile detected."

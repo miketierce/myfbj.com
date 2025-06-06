@@ -76,8 +76,10 @@ The GitHub Actions workflow has been updated to:
 4. **CI/CD Lockfile Issues**:
    - If you encounter `ERR_PNPM_OUTDATED_LOCKFILE` errors in CI:
      - The pipeline is configured to automatically handle lockfile updates
-     - For manual fixes, run `pnpm install` locally with Node 22 and PNPM 8
-     - Or use Docker: `docker run --rm -v $(pwd):/app -w /app node:22-alpine sh -c "npm i -g pnpm@8 && pnpm install"`
+     - For manual fixes, run one of these commands:
+       - `pnpm lockfile:update` - Update lockfile only
+       - `pnpm lockfile:update:commit` - Update and commit lockfile
+     - If you're not using Node 22 locally, these commands will use Docker to ensure compatibility
 
 ### Compatibility Notes
 
