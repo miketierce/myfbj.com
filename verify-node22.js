@@ -67,12 +67,10 @@ async function checkPnpmVersion() {
     const pnpmVersion = execSync('pnpm --version', { encoding: 'utf8' }).trim();
     const majorVersion = parseInt(pnpmVersion.split('.')[0], 10);
 
-    if (majorVersion === 8) {
-      success(`Running PNPM ${pnpmVersion}`);
-    } else if (majorVersion > 8) {
-      warning(`Running PNPM ${pnpmVersion} (higher than expected PNPM 8)`);
+    if (majorVersion >= 8) {
+      success(`Running PNPM ${pnpmVersion} (expected >=8)`);
     } else {
-      error(`Running PNPM ${pnpmVersion} (expected PNPM 8)`);
+      error(`Running PNPM ${pnpmVersion} (expected >=8)`);
       return false;
     }
 
@@ -126,12 +124,11 @@ async function checkPackageJson() {
       return false;
     }
 
-    if (packageJson.engines && packageJson.engines.pnpm && packageJson.engines.pnpm.includes('8')) {
-      success(`Package.json requires PNPM ${packageJson.engines.pnpm}`);
+    // PNPM version check in package.json is now optional
+    if (packageJson.engines && packageJson.engines.pnpm) {
+      info(`Package.json specifies PNPM version: ${packageJson.engines.pnpm} (this is optional)`);
     } else {
-      error(`Package.json does not specify PNPM 8 requirement (found: ${packageJson.engines?.pnpm || 'undefined'
-        })`);
-      return false;
+      info('Package.json does not specify a PNPM version (this is optional).');
     }
 
     return true;
@@ -190,7 +187,7 @@ async function checkPnpmConfig() {
 
 // Main verification function
 async function verifyNode22Setup() {
-  header('NODE 22 + PNPM 8 VERIFICATION');
+  header('NODE 22 + LATEST PNPM (>=8) VERIFICATION');
   info(`Date: ${new Date().toLocaleString()}`);
   info(`Project directory: ${projectRoot}`);
 
@@ -233,10 +230,10 @@ async function verifyNode22Setup() {
 
   log('\n');
   if (passedChecks === totalChecks) {
-    success(`🎉 All checks passed! Your project is ready for Node 22 + PNPM 8.`);
+    success(`🎉 All checks passed! Your project is ready for Node 22 + PNPM >=8.`);
   } else {
     warning(`${passedChecks}/${totalChecks} checks passed (${passPercent}%)`);
-    error(`Please fix the failed checks to ensure full Node 22 + PNPM 8 compatibility.`);
+    error(`Please fix the failed checks to ensure full Node 22 + PNPM >=8 compatibility.`);
 
     if (totalChecks - passedChecks <= 2) {
       warning("You're almost there! Just a few more issues to fix.");
