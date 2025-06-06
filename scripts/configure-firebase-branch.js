@@ -23,8 +23,8 @@ const defaultBranches = ['master', 'main', 'dev', 'development'];
 if (!branchName || defaultBranches.includes(branchName)) {
   console.log(`Branch '${branchName}' uses default firebase.json configuration.`);
   // Output default names for consistency in workflow, though they might not be strictly needed if firebase.json is unchanged
-  console.log(`::set-output name=function_name::server`);
-  console.log(`::set-output name=hosting_site_id::`); // Empty means default site for the project
+  console.log(`function_name=server`);
+  console.log(`hosting_site_id=`); // Empty means default site for the project
   process.exit(0);
 }
 
@@ -75,5 +75,5 @@ try {
 }
 
 // Output variables for GitHub Actions
-console.log(`::set-output name=function_name::${functionName}`);
-console.log(`::set-output name=hosting_site_id::${siteId}`);
+console.log(`function_name=${functionName}`);
+console.log(`hosting_site_id=${siteId}`);

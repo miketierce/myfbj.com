@@ -57,6 +57,7 @@ jobs:
             echo "Using PRODUCTION environment"
             echo "envkeys=PROD_envKeys" >> $GITHUB_OUTPUT
             echo "service_account=PROD_FIREBASE_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+            echo "project_id=${{ secrets.PROD_FIREBASE_PROJECT_ID }}" >> $GITHUB_OUTPUT
             echo "project_id=${{ secrets.PROD_FIREBASE_PROJECT_ID }}" >> $GITHUB_ENV
             echo "recaptcha_site_key=${{ secrets.PROD_RECAPTCHA_SITE_KEY }}" >> $GITHUB_ENV
             echo "recaptcha_secret_key=${{ secrets.PROD_RECAPTCHA_SECRET_KEY }}" >> $GITHUB_ENV
@@ -72,6 +73,7 @@ jobs:
             echo "Using DEVELOPMENT environment"
             echo "envkeys=DEV_envKeys" >> $GITHUB_OUTPUT
             echo "service_account=DEV_FIREBASE_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+            echo "project_id=${{ secrets.DEV_FIREBASE_PROJECT_ID }}" >> $GITHUB_OUTPUT
             echo "project_id=${{ secrets.DEV_FIREBASE_PROJECT_ID }}" >> $GITHUB_ENV
             echo "recaptcha_site_key=${{ secrets.DEV_RECAPTCHA_SITE_KEY }}" >> $GITHUB_ENV
             echo "recaptcha_secret_key=${{ secrets.DEV_RECAPTCHA_SECRET_KEY }}" >> $GITHUB_ENV
@@ -87,19 +89,25 @@ jobs:
       - name: Get branch name
         id: branch_name
         run: |
-          BRANCH_SLUG=$(echo "${{ github.head_ref || github.ref_name }}" | sed \'s/[^a-zA-Z0-9-]/-/g\' | sed \'s/-\+/-/g\' | sed \'s/^-//\' | sed \'s/-$//\' | tr \'[:upper:]\' \'[:lower:]\')
+          BRANCH_SLUG=$(echo "${{ github.head_ref || github.ref_name }}" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/-\+/-/g' | sed 's/^-//' | sed 's/-$//' | tr '[:upper:]' '[:lower:]')
           echo "Original branch: ${{ github.head_ref || github.ref_name }}"
           echo "Sanitized branch slug: $BRANCH_SLUG"
           echo "branch_slug=$BRANCH_SLUG" >> $GITHUB_OUTPUT
 
       - name: Configure Firebase for Branch
         id: configure_firebase
-        if: steps.determine_env.outputs.ENVIRONMENT == 'development' # Only run for dev environment
+        if: env.ENVIRONMENT == 'development' # Only run for dev environment
         run: |
-          node ./scripts/configure-firebase-branch.js
+          output=$(node ./scripts/configure-firebase-branch.js)
+          echo "$output"
+          # Parse the output and set GitHub Actions outputs
+          function_name=$(echo "$output" | grep "function_name=" | cut -d'=' -f2)
+          hosting_site_id=$(echo "$output" | grep "hosting_site_id=" | cut -d'=' -f2)
+          echo "function_name=$function_name" >> $GITHUB_OUTPUT
+          echo "hosting_site_id=$hosting_site_id" >> $GITHUB_OUTPUT
         env:
           BRANCH_NAME: ${{ steps.branch_name.outputs.branch_slug }}
-          FIREBASE_PROJECT_ID: ${{ env.project_id }} # Pass the determined project ID
+          FIREBASE_PROJECT_ID: ${{ steps.determine_env.outputs.project_id }}
 
       - name: Setup Firebase service account
         run: |
@@ -365,6 +373,20 @@ jobs:
         run: npm install -g firebase-tools@14.6.0
         # Using v14.6.0 which is compatible with Node.js 22
 
+      - name: Create Firebase Hosting Site (if needed)
+        if: github.event_name == 'push' && env.ENVIRONMENT == 'development' && steps.configure_firebase.outputs.hosting_site_id != ''
+        run: |
+          export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
+          echo "🔍 Checking/Creating Firebase Hosting site for branch deployment..."
+          echo "Site ID: ${{ steps.configure_firebase.outputs.hosting_site_id }}"
+          echo "Project ID: ${{ steps.determine_env.outputs.project_id }}"
+
+          # Use the project
+          firebase use ${{ steps.determine_env.outputs.project_id }} --non-interactive
+
+          # Create site if it doesn't exist
+          bash ./scripts/create-firebase-site.sh "${{ steps.configure_firebase.outputs.hosting_site_id }}" "${{ steps.determine_env.outputs.project_id }}"
+
       - name: Set Deploy Targets
         id: deploy_targets
         shell: bash
@@ -375,7 +397,7 @@ jobs:
           functions_target_arg="functions:server" # Default to production/mainline targets
 
           # Check if we are in a development environment (any non-master/main branch)
-          if [[ "${{ steps.determine_env.outputs.ENVIRONMENT }}" == "development" ]]; then
+          if [[ "${{ env.ENVIRONMENT }}" == "development" ]]; then
             # The 'configure_firebase' step runs only for 'development' environment.
             # Its outputs will contain the branch-specific names.
             dev_hosting_site_id="${{ steps.configure_firebase.outputs.hosting_site_id }}"
@@ -418,8 +440,8 @@ jobs:
           echo "Service account email: $CLIENT_EMAIL"
 
           # Using the service account credentials directly
-          echo "Deploying to Firebase project: $project_id"
-          firebase use $project_id --non-interactive
+          echo "Deploying to Firebase project: ${{ steps.determine_env.outputs.project_id }}"
+          firebase use ${{ steps.determine_env.outputs.project_id }} --non-interactive
 
           # Check for Nuxt generated functions directory
           if [ -d ".output/server" ]; then
@@ -456,17 +478,17 @@ jobs:
 
           # Deploy each component separately to isolate any issues
           echo "Deploying Firestore rules and indexes..."
-          firebase deploy --only ${{ steps.deploy_targets.outputs.firestore_target_arg }} --project $project_id --non-interactive || echo "Firestore rules deployment failed, will try to continue with the rest"
+          firebase deploy --only ${{ steps.deploy_targets.outputs.firestore_target_arg }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive || echo "Firestore rules deployment failed, will try to continue with the rest"
 
           echo "Deploying Storage rules..."
-          firebase deploy --only ${{ steps.deploy_targets.outputs.storage_target_arg }} --project $project_id --non-interactive || echo "Storage rules deployment failed, will try to continue with the rest"
+          firebase deploy --only ${{ steps.deploy_targets.outputs.storage_target_arg }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive || echo "Storage rules deployment failed, will try to continue with the rest"
 
           echo "Deploying hosting..."
-          firebase deploy --only ${{ steps.deploy_targets.outputs.hosting_target_arg }} --project $project_id --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
+          firebase deploy --only ${{ steps.deploy_targets.outputs.hosting_target_arg }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
 
           # Run our custom script to ensure functions are properly prepared
           echo "Running prepare-functions-deploy script to ensure all dependencies are in place..."
           bash ./scripts/prepare-functions-deploy.sh
 
           echo "Deploying functions..."
-          firebase deploy --only ${{ steps.deploy_targets.outputs.functions_target_arg }} --project $project_id --non-interactive
+          firebase deploy --only ${{ steps.deploy_targets.outputs.functions_target_arg }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive
