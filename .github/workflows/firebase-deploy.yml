@@ -168,6 +168,11 @@ jobs:
           pnpm config set resolution-mode highest
           pnpm config set ignore-compatibility-db true
 
+          # Add Node.js 22 specific fixes for native modules
+          pnpm config set prefer-frozen-lockfile false
+          pnpm config set node-gyp-force-latest true
+          pnpm config set symlink false
+
           # Verify PNPM configuration
           echo "PNPM configuration verification:"
           pnpm config get @fortawesome:registry || echo "PNPM config not set properly"
@@ -184,12 +189,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Using --no-frozen-lockfile because lockfile might be out of sync with package.json
-          pnpm install --no-frozen-lockfile
+          # Pre-install native module dependencies to avoid issues
+          echo "Installing node-gyp and other build tools..."
+          npm install -g node-gyp@latest prebuild-install@latest
+
+          # First install with nodedir to help native modules
+          echo "Initial install with nodedir for native modules..."
+          NODE_GYP_FORCE_PYTHON=python3 NODEDIR=/opt/hostedtoolcache/node/22.15.0/x64 pnpm install --no-frozen-lockfile --shamefully-hoist
+
+          # Fix known problematic modules before continuing
+          echo "Fixing known problematic modules..."
+          node ./scripts/ci-fix-modules.js
 
           # Update the lockfile if needed
           echo "Updating pnpm-lock.yaml to match the current package.json files..."
-          pnpm install
+          NODE_GYP_FORCE_PYTHON=python3 NODEDIR=/opt/hostedtoolcache/node/22.15.0/x64 pnpm install
 
           # If running in a PR, we'll show the lockfile changes but not commit them
           # If running on main branches, we'll commit the updated lockfile

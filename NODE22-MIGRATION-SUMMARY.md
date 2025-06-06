@@ -1,4 +1,10 @@
-# Node 22 + PNPM 8 Migration Summary
+# Node 22 + PNPM 8 Migrati3. **Dependencies Updates**
+   - ✅ Updated firebase-admin to v12.3.0
+   - ✅ Updated firebase-functions to v6.3.2
+   - ✅ Updated TypeScript to v5.5.0
+   - ✅ Added @types/node to v22
+   - ✅ Added package overrides for native modules with Node.js 22 compatibility issues
+   - ✅ Created fixes for module resolution in better-sqlite3 and other native modulesmmary
 
 ## June 5, 2025 Update
 
@@ -8,6 +14,7 @@ The migration to Node.js 22 and PNPM 8 has been completed with fixes for all cri
 - ✅ Fixed "Couldn't find firebase-functions package" error in functions deployment
 - ✅ Added comprehensive verification tools to check migration completeness
 - ✅ Created migration documentation for future reference
+- ✅ Fixed native module installation issues with better-sqlite3 and unrs-resolver
 
 ## Completed Tasks
 
@@ -109,6 +116,7 @@ The migration to Node.js 22 and PNPM 8 has been completed with fixes for all cri
 
 If you encounter any issues with Node.js 22 or PNPM 8, please refer to:
 - NODE22-MIGRATION.md for detailed troubleshooting
+- docs/NODE22-NATIVE-MODULE-FIXES.md for native module issues
 - Run verification scripts to isolate potential compatibility issues:
   ```bash
   # Run comprehensive migration verification
@@ -119,7 +127,11 @@ If you encounter any issues with Node.js 22 or PNPM 8, please refer to:
 
   # Verify functions output after build
   node scripts/verify-functions-output.js
+
+  # Fix native module issues in CI
+  node scripts/ci-fix-modules.js
   ```
-- For CI pipeline issues, check GitHub Actions logs
+- For CI pipeline issues, check GitHub Actions logs and consider updating package overrides
 - For deployment failures, verify all Firebase Tools versions match v14.6.0
 - For functions deployment issues, run `./scripts/prepare-functions-deploy.sh` before deployment
+- For native module issues, see troubleshooting in docs/NODE22-NATIVE-MODULE-FIXES.md
