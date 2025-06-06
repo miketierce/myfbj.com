@@ -207,58 +207,19 @@ jobs:
             }
           "
 
-      - name: Apply early module fixes
-        run: |
-          # Make early module fix script executable
-          echo "Applying early fixes for native modules..."
-          chmod +x ./scripts/early-module-fix.cjs
-          chmod +x ./scripts/ci-fix-modules.cjs
-          chmod +x ./scripts/ci-safe-install.cjs
-
-          # Install global dependencies first - USE SPECIFIC VERSIONS
-          echo "Installing global dependencies for native modules..."
-          npm install -g node-gyp@10.0.1 prebuild-install@7.1.1 @napi-rs/cli
-          npm install -g rc@1.2.8
-
-          # Run the early fix script to prepare modules
-          node ./scripts/early-module-fix.cjs
-
-          # Pre-install native module dependencies to avoid issues
-          echo "Installing node-gyp and other build tools..."
-          # This is redundant but keeping for stability
-          npm install -g node-gyp@10.0.1 prebuild-install@7.1.1 @napi-rs/cli
-          npm install -g rc@1.2.8
-
       - name: Install dependencies and update lockfile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_GYP_FORCE_PYTHON: python3
         run: |
-          # Run the safe install script
-          echo "Installing dependencies with safety measures..."
-          NODE_GYP_FORCE_PYTHON=python3 NODEDIR=/opt/hostedtoolcache/node/22.15.0/x64 node ./scripts/ci-safe-install.cjs
-
-          # Run the fix modules script again to catch any issues
-          echo "Running module fixes..."
-          node ./scripts/ci-fix-modules.cjs
-
-          # Update the lockfile if needed
-          echo "Updating pnpm-lock.yaml to match the current package.json files..."
-          NODE_GYP_FORCE_PYTHON=python3 NODEDIR=/opt/hostedtoolcache/node/22.15.0/x64 pnpm install
+          echo "Installing dependencies and updating pnpm-lock.yaml..."
+          pnpm install
 
           # Verify package.json integrity after installation
           echo "Verifying package.json integrity after installation..."
           if ! jq . package.json > /dev/null 2>&1; then
             echo "❌ ERROR: package.json is not valid JSON after installation!"
-            echo "Attempting to restore from backup if it exists..."
-
-            if [ -f "package.json.bak" ]; then
-              echo "Backup found, restoring..."
-              cp package.json.bak package.json
-              echo "✅ Restored package.json from backup"
-            else
-              echo "⚠️ No backup found, cannot restore package.json"
-              exit 1
-            fi
+            exit 1
           else
             echo "✅ package.json integrity verified"
           fi
