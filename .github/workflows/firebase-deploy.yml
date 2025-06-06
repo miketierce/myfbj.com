@@ -368,11 +368,7 @@ jobs:
           if [ -d ".output/server" ]; then
             echo "Preparing Nuxt-generated functions for Firebase deployment..."
 
-            # Copy necessary files from development functions to output directory
-            echo "Copying dependencies from functions directory to .output/server"
-            cp functions/package.json .output/server/
-
-            # Install dependencies in the output directory
+            # Install dependencies in the output directory using the Nuxt-generated package.json
             echo "Installing dependencies in .output/server directory..."
             cd .output/server
             pnpm install
