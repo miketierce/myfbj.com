@@ -5,6 +5,7 @@ import firebaseConfig from './config/firebase.config'
 import { fileURLToPath } from 'url'
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
+import { defineNuxtConfig } from 'nuxt/config' // Added import
 const envName = process.env.DEPLOY_ENV || 'dev'
 
 // Use absolute path for service account
@@ -136,17 +137,6 @@ export default defineNuxtConfig({
         config.plugins.push(vuetify({ autoImport: true }))
       })
     },
-
-    // Nuxt Content module
-    [
-      '@nuxt/content',
-      {
-        documentDriven: true,
-        experimental: {
-          nativeSqlite: true, // Keep native SQLite
-        },
-      },
-    ],
     '@nuxt/eslint',
     '@nuxt/image',
     '@nuxt/scripts',

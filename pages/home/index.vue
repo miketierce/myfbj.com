@@ -1,13 +1,7 @@
 <script setup lang="ts">
-const { data: home } = await useAsyncData(() => queryCollection('content').path('/').first())
-
-useSeoMeta({
-  title: home.value?.title,
-  description: home.value?.description
-})
+// Script content removed due to @nuxt/content removal
 </script>
 
 <template>
-  <ContentRenderer v-if="home" :value="home" />
-  <div v-else>Home not found</div>
+  <div>Home page content removed due to @nuxt/content removal</div>
 </template>

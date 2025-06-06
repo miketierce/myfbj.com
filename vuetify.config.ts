@@ -405,25 +405,4 @@ html.dark-theme body {
 .text-default {
   color: rgb(var(--v-theme-on-background)) !important;
 }
-
-/* Fix for Nuxt content rendering */
-.nuxt-content {
-  color: rgb(var(--v-theme-on-background)) !important;
-}
-.nuxt-content h1, .nuxt-content h2, .nuxt-content h3,
-.nuxt-content h4, .nuxt-content h5, .nuxt-content h6,
-.nuxt-content p, .nuxt-content li, .nuxt-content span {
-  color: rgb(var(--v-theme-on-background)) !important;
-}
-.nuxt-content a {
-  color: rgb(var(--v-theme-primary)) !important;
-}
-.nuxt-content code {
-  background-color: rgb(var(--v-theme-surface));
-  border: 1px dashed rgb(var(--v-theme-primary));
-}
-h2 {
-  margin-top: .5em;
-  margin-bottom: .75em;
-}
 `

@@ -3,15 +3,33 @@
 # Setup script for Node 22 + PNPM 8 development environment
 echo "📦 Setting up Node 22 + PNPM 8 development environment..."
 
+# Attempt to source nvm
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
 # Check if Node.js is installed and version is >= 22
 node_version=$(node -v 2>/dev/null | cut -d. -f1 | tr -d 'v')
 if [ -z "$node_version" ] || [ "$node_version" -lt 22 ]; then
-  echo "❌ Node.js 22 or later is required"
-  echo "💡 Tip: Use nvm (Node Version Manager) to install and manage Node versions:"
-  echo "   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash"
-  echo "   nvm install 22"
-  echo "   nvm use 22"
-  exit 1
+  echo "❌ Node.js 22 or later is required. Current version: $(node -v 2>/dev/null || echo "Not installed")"
+  if command -v nvm >/dev/null 2>&1; then
+    echo "💡 Attempting to install and use Node.js 22 via nvm..."
+    nvm install 22
+    nvm use 22
+    # Re-check version after attempting nvm install/use
+    node_version=$(node -v 2>/dev/null | cut -d. -f1 | tr -d 'v')
+    if [ -z "$node_version" ] || [ "$node_version" -lt 22 ]; then
+      echo "❌ Failed to set Node.js 22 using nvm. Please check nvm setup."
+      exit 1
+    else
+      echo "✅ Node.js $(node -v) is now active via nvm."
+    fi
+  else
+    echo "💡 nvm (Node Version Manager) is not installed or not in PATH."
+    echo "   Please install nvm first: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash"
+    echo "   Then run 'nvm install 22', 'nvm use 22', and re-run this script."
+    exit 1
+  fi
 else
   echo "✅ Node.js $(node -v) is installed"
 fi
@@ -20,9 +38,13 @@ fi
 if ! command -v pnpm >/dev/null 2>&1; then
   echo "❌ PNPM is not installed"
   echo "💡 Installing PNPM 8..."
-  curl -fsSL https://get.pnpm.io/install.sh | sh -
-  source ~/.bashrc
-  source ~/.zshrc 2>/dev/null || true
+  # Ensure Node/npm is available for this global install
+  npm install -g pnpm@8
+  # The original curl pipe might fail if npm isn't configured globally or if nvm hasn't set up global path correctly yet.
+  # curl -fsSL https://get.pnpm.io/install.sh | sh -
+  # source ~/.bashrc # Sourcing .bashrc in a script is often problematic
+  # source ~/.zshrc 2>/dev/null || true # Same for .zshrc
+  # It's better to rely on npm's global installation path for pnpm
   pnpm config set node-linker hoisted
   pnpm config set strict-peer-dependencies false
   pnpm config set auto-install-peers true
