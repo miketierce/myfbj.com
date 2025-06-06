@@ -31,8 +31,13 @@ if firebase hosting:sites:create "$SITE_ID" --project "$PROJECT_ID"; then
 else
   echo "❌ Failed to create Firebase Hosting site: $SITE_ID"
   echo "💡 This might be because:"
-  echo "   - Site name already exists globally"
+  echo "   - Site name already exists globally (Firebase site names must be unique across all projects)"
   echo "   - Insufficient permissions"
   echo "   - Invalid site name format"
+  echo ""
+  echo "🔧 SOLUTION: The configure-firebase-branch.js script has been updated to generate"
+  echo "   more unique site names by combining branch name + project ID suffix."
+  echo "   If you're still seeing this error, the generated name might still conflict."
+  echo "   Consider using a different branch name or contact support."
   exit 1
 fi

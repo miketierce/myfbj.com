@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
-const branchName = process.env.BRANCH_NAME; // This will be the sanitized branch slug
+// Support both command line arguments and environment variables
+const branchName = process.argv[2] || process.env.BRANCH_NAME; // This will be the sanitized branch slug
 const firebaseJsonPath = path.resolve(process.cwd(), 'firebase.json');
 
 if (!firebaseJsonPath || !fs.existsSync(firebaseJsonPath)) {
@@ -30,9 +31,23 @@ if (!branchName || defaultBranches.includes(branchName)) {
 
 // For feature branches, create unique names
 const functionName = `server-${branchName}`;
-const siteId = branchName; // This will result in branchName.project-id.web.app
+
+// Get Firebase project ID from environment variable or command line
+const firebaseProjectId = process.argv[3] || process.env.FIREBASE_PROJECT_ID;
+if (!firebaseProjectId) {
+  console.error('Error: FIREBASE_PROJECT_ID environment variable is required for feature branches');
+  process.exit(1);
+}
+
+// Extract a short identifier from the project ID to make site names more unique
+// Firebase Hosting site names are globally unique across ALL Firebase projects
+// So we combine branch name + project ID suffix to ensure uniqueness
+// Firebase project IDs are unique, so using part of it ensures our site names are unique too
+const projectSuffix = firebaseProjectId.substring(0, 8).replace(/[^a-z0-9]/g, ''); // Take first 8 chars, alphanumeric only
+const siteId = `${branchName}-${projectSuffix}`; // This creates globally unique site names
 
 console.log(`Configuring for feature branch: ${branchName}`);
+console.log(`  Firebase Project ID: ${firebaseProjectId}`);
 console.log(`  New function name: ${functionName}`);
 console.log(`  New hosting site ID: ${siteId}`);
 
