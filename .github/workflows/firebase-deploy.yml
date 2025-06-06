@@ -41,7 +41,7 @@ jobs:
       - name: Setup PNPM
         uses: pnpm/action-setup@v2
         with:
-          version: 8.15.4
+          version: latest
           # Don't run install here
 
       - name: Set up Node.js ${{ env.NODE_VERSION }}
