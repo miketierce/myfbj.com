@@ -180,41 +180,91 @@ if [ ! -d ".pnpm-patches" ]; then
   echo "✅ Created .pnpm-patches directory"
 fi
 
-# Function to create a package.json override
+# Function to create a package.json override - using node for proper JSON handling
 create_package_override() {
   local package_name=$1
   local override_content=$2
 
-  # Create the overrides property if it doesn't exist in package.json
-  if ! grep -q '"overrides"' package.json; then
-    # Add overrides to the end of the file, before the last }
-    sed -i '$ s/}$/,\n  "overrides": {}\n}/' package.json
-    echo "✅ Added overrides property to package.json"
-  fi
+  # Use Node.js to safely modify JSON
+  node -e "
+    const fs = require('fs');
 
-  # Add the specific override
-  if ! grep -q "\"$package_name\":" package.json; then
-    # Replace empty overrides object with our override
-    sed -i "s/\"overrides\": {/\"overrides\": {\n    \"$package_name\": $override_content/" package.json
-    echo "✅ Added $package_name override to package.json"
-  fi
+    try {
+      // Read package.json and parse it
+      const packageJsonPath = './package.json';
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+
+      // Create overrides object if it doesn't exist
+      if (!packageJson.overrides) {
+        packageJson.overrides = {};
+        console.log('✅ Added overrides property to package.json');
+      }
+
+      // Add the specific override if it doesn't exist
+      if (!packageJson.overrides['$package_name']) {
+        packageJson.overrides['$package_name'] = $override_content;
+        console.log('✅ Added $package_name override to package.json');
+
+        // Write the updated package.json back
+        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+      } else {
+        console.log('ℹ️ Override for $package_name already exists');
+      }
+    } catch (error) {
+      console.error('❌ Error updating package.json:', error.message);
+      process.exit(1);
+    }
+  "
 }
 
-# Add specific overrides for problematic packages
+# Add all overrides at once for problematic packages
 if [ -f "package.json" ]; then
   echo "Adding package overrides for problematic native modules..."
 
-  # Override for better-sqlite3
-  create_package_override "better-sqlite3" "\"^8.7.0\""
+  # Use Node.js to safely add all overrides at once
+  node -e "
+    const fs = require('fs');
 
-  # Override for rc module (needed by prebuild-install)
-  create_package_override "rc" "\"1.2.8\""
+    try {
+      // Read package.json and parse it
+      const packageJsonPath = './package.json';
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
-  # Override for node-gyp
-  create_package_override "node-gyp" "\"^10.0.1\""
+      // Create overrides object if it doesn't exist
+      if (!packageJson.overrides) {
+        packageJson.overrides = {};
+        console.log('✅ Added overrides property to package.json');
+      }
 
-  # Override for prebuild-install
-  create_package_override "prebuild-install" "\"^7.1.1\""
+      // Define all our overrides
+      const overridesToAdd = {
+        'better-sqlite3': '^8.7.0',
+        'rc': '1.2.8',
+        'node-gyp': '^10.0.1',
+        'prebuild-install': '^7.1.1'
+      };
+
+      // Add all the overrides
+      let addedCount = 0;
+      for (const [name, version] of Object.entries(overridesToAdd)) {
+        if (!packageJson.overrides[name]) {
+          packageJson.overrides[name] = version;
+          addedCount++;
+        }
+      }
+
+      if (addedCount > 0) {
+        console.log(\`✅ Added \${addedCount} package overrides to package.json\`);
+        // Write the updated package.json back
+        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+      } else {
+        console.log('ℹ️ All required overrides already exist');
+      }
+    } catch (error) {
+      console.error('❌ Error updating package.json:', error.message);
+      process.exit(1);
+    }
+  "
 fi
 
 # Create a special install script for CI

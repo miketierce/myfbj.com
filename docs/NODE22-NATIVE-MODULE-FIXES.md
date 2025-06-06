@@ -49,6 +49,44 @@ These changes have been tested in the CI pipeline and successfully resolve the n
 ## Future Maintenance
 
 When updating to newer versions of Node.js or PNPM, be aware that:
+
+1. Native module compatibility may change with new Node.js versions
+2. You may need to update the module fixes in `scripts/ci-fix-modules.js`
+3. Verify that package overrides are still required for newer versions
+
+## Implementation Details
+
+### scripts/ci-fix-modules.js
+
+This script fixes runtime module resolution issues by:
+
+1. Patching the prebuild-install script for better-sqlite3:
+   - Changes `require('./rc')` to `require('rc')` for proper resolution
+
+2. Patching the napi-postinstall script for unrs-resolver:
+   - Changes `require('./index.js')` to `require('@napi-rs/postinstall/index.js')`
+
+3. Fixing wrapper files for native binaries:
+   - Adjusts relative paths to use absolute package paths
+
+### scripts/ci-safe-install.js
+
+This script provides a safer installation process by:
+
+1. Backing up package.json before installation
+2. Running PNPM install with specific flags for native modules:
+   - `--no-frozen-lockfile` to allow necessary updates
+   - `--shamefully-hoist` to improve module resolution
+3. Running the module fixes script to patch binary wrappers
+4. Restoring package.json from backup if installation fails
+
+### CI Workflow Updates
+
+The GitHub Actions workflow has been updated to:
+
+1. Use the existing scripts instead of inline shell script blocks
+2. Set proper environment variables for native module builds
+3. Fix YAML formatting issues that were causing JSON corruption
 1. Native modules may require similar fixes
 2. The specific module paths in `ci-fix-modules.js` may need to be updated
 3. Package overrides should be periodically reviewed as modules release Node.js 22 compatible versions
