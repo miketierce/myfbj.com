@@ -3,11 +3,10 @@ name: Firebase Deploy
 on:
   push:
     branches:
-      - master
-      - main
-      - dev
-      - development
-      # We are removing the * pattern to prevent triggering on automated commits
+      - '**' # This will trigger on pushes to all branches
+      # The 'determine_env' step will correctly set production for master/main
+      # and development for all other branches.
+      # The job-level 'if' condition handles skipping CI for automated commits with skip flags or from bot actors.
   pull_request:
     branches:
       - master
