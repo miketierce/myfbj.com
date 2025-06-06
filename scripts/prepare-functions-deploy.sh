@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+# prepare-functions-deploy.sh
+# Script to prepare Firebase Functions for deployment
+
+set -e # Exit on error
+
+echo "🔧 Preparing Firebase Functions for deployment..."
+
+# Check source functions directory
+if [ ! -d "functions" ]; then
+  echo "❌ Error: functions directory not found!"
+  exit 1
+fi
+
+# Check Nuxt output directory
+if [ ! -d ".output/server" ]; then
+  echo "❌ Error: .output/server directory not found. Run 'pnpm build' first."
+  exit 1
+fi
+
+# Copy package.json from functions to the output directory
+echo "📦 Copying package.json from functions to .output/server..."
+cp functions/package.json .output/server/
+
+# Install dependencies in the output directory
+echo "🔍 Installing dependencies in .output/server..."
+cd .output/server
+
+# Install dependencies
+if command -v pnpm &> /dev/null; then
+  echo "Using pnpm to install dependencies..."
+  pnpm install --prod
+else
+  echo "PNPM not found, using npm instead..."
+  npm install --only=prod
+fi
+
+# Verify firebase-functions package is installed
+if [ -d "node_modules/firebase-functions" ]; then
+  echo "✅ firebase-functions package successfully installed"
+else
+  echo "⚠️ Warning: firebase-functions package not found. Installing explicitly..."
+  if command -v pnpm &> /dev/null; then
+    pnpm add firebase-functions@6.3.2 firebase-admin@12.3.0
+  else
+    npm install firebase-functions@6.3.2 firebase-admin@12.3.0
+  fi
+fi
+
+# Verify other necessary files
+if [ ! -f "index.mjs" ] && [ ! -f "index.js" ]; then
+  echo "⚠️ Warning: No entry point found in .output/server"
+fi
+
+# Go back to project root
+cd ../..
+
+echo "✅ Firebase Functions prepared for deployment!"
+echo "🚀 You can now deploy with: firebase deploy --only functions"

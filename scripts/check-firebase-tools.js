@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { createRequire } from 'module';
 
 // Setup paths
 const __filename = fileURLToPath(import.meta.url);

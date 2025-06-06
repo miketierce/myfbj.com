@@ -35,10 +35,12 @@
     "lockfile:update": "./scripts/update-lockfile.sh",
     "lockfile:update:commit": "./scripts/update-lockfile.sh --commit",
     "verify:node22": "node verify-node22.js",
+    "verify:functions": "node scripts/verify-functions-output.js",
     "monitor:functions": "node monitor-functions.js",
     "monitor:functions:prod": "node monitor-functions.js --project=$(firebase use prod >/dev/null && firebase use | grep -o 'Active Project: .*' | cut -d' ' -f3) --duration=60",
     "monitor:functions:dev": "node monitor-functions.js --project=$(firebase use dev >/dev/null && firebase use | grep -o 'Active Project: .*' | cut -d' ' -f3) --duration=30",
     "setup": "./setup-dev.sh",
+    "prepare:functions": "./scripts/prepare-functions-deploy.sh",
     "preinstall": "npx only-allow pnpm",
     "clean": "rm -rf node_modules .nuxt .output .nitro tmp .pnpm-store",
     "reinstall": "pnpm clean && pnpm install"
