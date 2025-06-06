@@ -8,6 +8,7 @@
 // Import required modules
 import { onRequest } from 'firebase-functions/v2/https'
 import * as logger from 'firebase-functions/logger'
+import { MemoryOption } from 'firebase-functions/v2/options' // Import MemoryOption
 
 // Define runtime options to take advantage of Node 22
 const runtimeOptions = {
