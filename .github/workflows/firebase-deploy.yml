@@ -7,7 +7,7 @@ on:
       - main
       - dev
       - development
-      - '*' # Allow any branch
+      # We're removing the '*' pattern to prevent triggering on automated commits
   pull_request:
     branches:
       - master
@@ -17,6 +17,11 @@ jobs:
   build_and_deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
+    # Skip if commit message contains any of these skip flags
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
+
+    # Skip workflow runs triggered by GitHub Actions bot commits
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]') && !contains(github.event.head_commit.message, '[no ci]') && github.actor != 'github-actions[bot]' && github.actor != 'GitHub-Actions'"
 
     env:
       NODE_VERSION: 22
@@ -248,12 +253,13 @@ jobs:
               git config --global user.name "GitHub Actions"
               git config --global user.email "github-actions@github.com"
               git add pnpm-lock.yaml
-              git commit -m "chore: update pnpm-lock.yaml [skip ci]"
+              # Start with [skip ci] to ensure GitHub Actions skips this commit
+              git commit -m "[skip ci][ci skip][no ci] chore: update pnpm-lock.yaml (automated)"
 
               # Push using the token for authentication
               echo "Pushing changes to repository..."
               git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
-              git push
+              git push --no-verify
             else
               echo "No changes to the lockfile detected."
             fi

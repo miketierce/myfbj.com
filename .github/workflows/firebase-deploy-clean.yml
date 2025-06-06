@@ -7,7 +7,7 @@ on:
       - main
       - dev
       - development
-      - '*' # Allow any branch
+      # We're removing the '*' pattern to prevent triggering on automated commits
   pull_request:
     branches:
       - master
@@ -200,12 +200,13 @@ jobs:
               git config --global user.name "GitHub Actions"
               git config --global user.email "github-actions@github.com"
               git add pnpm-lock.yaml
-              git commit -m "chore: update pnpm-lock.yaml [skip ci]"
+              # Start with [skip ci] to ensure GitHub Actions skips this commit
+              git commit -m "[skip ci][ci skip][no ci] chore: update pnpm-lock.yaml (automated)"
 
               # Push using the token for authentication
               echo "Pushing changes to repository..."
               git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
-              git push
+              git push --no-verify
             else
               echo "No changes to the lockfile detected."
             fi
