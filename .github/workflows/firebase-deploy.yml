@@ -84,6 +84,23 @@ jobs:
             echo "FIREBASE_REGION=us-central1" >> $GITHUB_ENV
           fi
 
+      - name: Get branch name
+        id: branch_name
+        run: |
+          BRANCH_SLUG=$(echo "${{ github.head_ref || github.ref_name }}" | sed \'s/[^a-zA-Z0-9-]/-/g\' | sed \'s/-\+/-/g\' | sed \'s/^-//\' | sed \'s/-$//\' | tr \'[:upper:]\' \'[:lower:]\')
+          echo "Original branch: ${{ github.head_ref || github.ref_name }}"
+          echo "Sanitized branch slug: $BRANCH_SLUG"
+          echo "branch_slug=$BRANCH_SLUG" >> $GITHUB_OUTPUT
+
+      - name: Configure Firebase for Branch
+        id: configure_firebase
+        if: steps.determine_env.outputs.ENVIRONMENT == \'development\' # Only run for dev environment
+        run: |
+          node ./scripts/configure-firebase-branch.js
+        env:
+          BRANCH_NAME: ${{ steps.branch_name.outputs.branch_slug }}
+          FIREBASE_PROJECT_ID: ${{ env.project_id }} # Pass the determined project ID
+
       - name: Setup Firebase service account
         run: |
           # Ensure jq is installed (for JSON validation)
@@ -398,17 +415,17 @@ jobs:
 
           # Deploy each component separately to isolate any issues
           echo "Deploying Firestore rules and indexes..."
-          firebase deploy --only firestore --project $project_id --non-interactive || echo "Firestore rules deployment failed, will try to continue with the rest"
+          firebase deploy --only firestore --project $project_id --non-interactive ${{ steps.determine_env.outputs.ENVIRONMENT == \'development\' && format(\'--only firestore:{0}\', steps.configure_firebase.outputs.hosting_site_id) || \'\' }} || echo "Firestore rules deployment failed, will try to continue with the rest"
 
           echo "Deploying Storage rules..."
-          firebase deploy --only storage --project $project_id --non-interactive || echo "Storage rules deployment failed, will try to continue with the rest"
+          firebase deploy --only storage --project $project_id --non-interactive ${{ steps.determine_env.outputs.ENVIRONMENT == \'development\' && format(\'--only storage:{0}\', steps.configure_firebase.outputs.hosting_site_id) || \'\' }} || echo "Storage rules deployment failed, will try to continue with the rest"
 
           echo "Deploying hosting..."
-          firebase deploy --only hosting --project $project_id --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
+          firebase deploy --only hosting${{ steps.determine_env.outputs.ENVIRONMENT == \'development\' && steps.configure_firebase.outputs.hosting_site_id && format(\':{0}\', steps.configure_firebase.outputs.hosting_site_id) || \'\' }} --project $project_id --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
 
           # Run our custom script to ensure functions are properly prepared
           echo "Running prepare-functions-deploy script to ensure all dependencies are in place..."
           bash ./scripts/prepare-functions-deploy.sh
 
           echo "Deploying functions..."
-          firebase deploy --only functions:server --project $project_id --non-interactive
+          firebase deploy --only functions:${{ steps.determine_env.outputs.ENVIRONMENT == \'development\' && steps.configure_firebase.outputs.function_name || \'server\' }} --project $project_id --non-interactive
