@@ -90,4 +90,42 @@ When making changes to GitHub Actions workflows:
 3. Verify that automated commits do not trigger additional builds
 4. After fixing CI issues, consider adding validation checks to prevent regression
 
+## CommonJS vs ES Modules in CI Scripts
+
+**Problem**: With `"type": "module"` set in package.json, all `.js` files are treated as ES modules, but many CI scripts rely on CommonJS features like `require()`.
+
+**Root Cause**: ES modules and CommonJS use different module systems with different syntax:
+- ES modules use `import`/`export` statements
+- CommonJS uses `require()`/`module.exports`
+
+**Solution**:
+
+1. **Use the `.cjs` Extension**:
+   - Renamed all CI scripts from `.js` to `.cjs` to force CommonJS mode regardless of package.json settings
+   - Updated all GitHub workflow references to use the new file extensions
+   - Created a consistent pattern for all scripts that need CommonJS features
+
+2. **Script Update Process**:
+   ```bash
+   # Example commands used to convert scripts
+   cp ./scripts/early-module-fix.js ./scripts/early-module-fix.cjs
+   cp ./scripts/ci-fix-modules.js ./scripts/ci-fix-modules.cjs
+   cp ./scripts/ci-safe-install.js ./scripts/ci-safe-install.cjs
+   ```
+
+3. **Workflow File Updates**:
+   ```yaml
+   # Updated script references in workflow
+   chmod +x ./scripts/early-module-fix.cjs
+   chmod +x ./scripts/ci-fix-modules.cjs
+   chmod +x ./scripts/ci-safe-install.cjs
+
+   # Run with node explicitly
+   node ./scripts/early-module-fix.cjs
+   ```
+
+4. **Validation Process**:
+   - Added new verification scripts with `.cjs` extension
+   - Test explicitly with Node.js 22 to ensure compatibility
+
 Last updated: June 5, 2025

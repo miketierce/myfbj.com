@@ -210,9 +210,9 @@ jobs:
         run: |
           # Make early module fix script executable
           echo "Applying early fixes for native modules..."
-          chmod +x ./scripts/early-module-fix.cjs
-          chmod +x ./scripts/ci-fix-modules.cjs
-          chmod +x ./scripts/ci-safe-install.cjs
+          chmod +x ./scripts/early-module-fix.js
+          chmod +x ./scripts/ci-fix-modules.js
+          chmod +x ./scripts/ci-safe-install.js
 
           # Install global dependencies first - USE SPECIFIC VERSIONS
           echo "Installing global dependencies for native modules..."
@@ -220,7 +220,7 @@ jobs:
           npm install -g rc@1.2.8
 
           # Run the early fix script to prepare modules
-          node ./scripts/early-module-fix.cjs
+          node ./scripts/early-module-fix.js
 
           # Pre-install native module dependencies to avoid issues
           echo "Installing node-gyp and other build tools..."
@@ -234,11 +234,11 @@ jobs:
         run: |
           # Run the safe install script
           echo "Installing dependencies with safety measures..."
-          NODE_GYP_FORCE_PYTHON=python3 NODEDIR=/opt/hostedtoolcache/node/22.15.0/x64 node ./scripts/ci-safe-install.cjs
+          NODE_GYP_FORCE_PYTHON=python3 NODEDIR=/opt/hostedtoolcache/node/22.15.0/x64 node ./scripts/ci-safe-install.js
 
           # Run the fix modules script again to catch any issues
           echo "Running module fixes..."
-          node ./scripts/ci-fix-modules.cjs
+          node ./scripts/ci-fix-modules.js
 
           # Update the lockfile if needed
           echo "Updating pnpm-lock.yaml to match the current package.json files..."
