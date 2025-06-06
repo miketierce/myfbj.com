@@ -865,7 +865,7 @@ For a multi-environment setup with development and production projects:
 This project uses:
 - Node.js 22 runtime
 - PNPM 8 package manager
-- Firebase Tools v13.48.0 (fully compatible with Node.js 22)
+- Firebase Tools @latest (fully compatible with Node.js 22)
 - Firebase Functions v6.4.0+ (supports Node.js 22 runtime)
 
 **Key improvements:**
