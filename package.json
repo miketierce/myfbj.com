@@ -30,6 +30,7 @@
     "docker:build": "docker-compose run --rm app sh -c \"pnpm build\"",
     "check:node": "node -v && pnpm -v",
     "check:node22": "node scripts/check-firebase-node22.js",
+    "check:firebase": "node scripts/check-firebase-tools.js",
     "test:functions": "./test-functions-node22.sh",
     "lockfile:update": "./scripts/update-lockfile.sh",
     "lockfile:update:commit": "./scripts/update-lockfile.sh --commit",

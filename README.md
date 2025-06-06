@@ -524,13 +524,13 @@ To deploy to Firebase from your local development environment:
 
 1. Make sure you have the Firebase CLI installed:
    ```bash
-   npm install -g firebase-tools@13.35.0
+   npm install -g firebase-tools@14.6.0
    ```
 
-   > **Important Note:** This project currently requires Firebase Tools v13.35.0 because:
-   > - Firebase Tools v14.0.0+ (released March 27, 2025) dropped support for Node.js 18
-   > - This project is pinned to Node.js 18 due to compatibility issues between better-sqlite3 and nuxt/content on Node 20
-   > - We'll upgrade to Node.js 20+ and Firebase Tools v14+ once these compatibility issues are resolved
+   > **Note:** This project uses Firebase Tools v14.6.0 and requires Node.js 22
+   > - The project has been upgraded to use Node.js 22 with PNPM 8
+   > - Firebase Tools v14+ is fully compatible with Node.js 22
+   > - See NODE22-MIGRATION.md for more details about the upgrade
 
 2. Log in to Firebase:
    ```bash

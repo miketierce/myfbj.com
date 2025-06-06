@@ -30,7 +30,7 @@ fi
 
 # Run a Node 22 container with PNPM 8 to update the lockfile
 echo "🐳 Running Docker container with Node 22 and PNPM 8..."
-docker run --rm -v "$DIR":/app -w /app node:22-alpine sh -c "
+docker run --rm -v "$REPO_ROOT":/app -w /app node:22-alpine sh -c "
     echo '📦 Installing PNPM 8...' &&
     npm install -g pnpm@8 &&
     echo '⚙️ Configuring PNPM...' &&
@@ -38,7 +38,8 @@ docker run --rm -v "$DIR":/app -w /app node:22-alpine sh -c "
     pnpm config set strict-peer-dependencies false &&
     pnpm config set auto-install-peers true &&
     pnpm config set resolution-mode highest &&
-    echo '🔄 Updating lockfile...' &&
+    pnpm config set ignore-compatibility-db true &&
+    echo '🔄 Updating lockfile for main project and functions workspace...' &&
     pnpm install
 "
 

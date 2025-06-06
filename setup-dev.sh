@@ -45,14 +45,14 @@ fi
 # Check if Firebase CLI is installed
 if ! command -v firebase >/dev/null 2>&1; then
   echo "❌ Firebase CLI is not installed"
-  echo "💡 Installing Firebase CLI version 13.48.0..."
-  npm install -g firebase-tools@13.48.0
+  echo "💡 Installing Firebase CLI version 14.6.0..."
+  npm install -g firebase-tools@14.6.0
 else
   firebase_version=$(firebase --version)
   echo "✅ Firebase CLI version $firebase_version is installed"
-  if [[ "$firebase_version" != "13.48.0" ]]; then
-    echo "⚠️ Consider updating to Firebase CLI version 13.48.0 for best compatibility with Node 22"
-    echo "   npm install -g firebase-tools@13.48.0"
+  if [[ "$firebase_version" != "14.6.0" ]]; then
+    echo "⚠️ Consider updating to Firebase CLI version 14.6.0 for best compatibility with Node 22"
+    echo "   npm install -g firebase-tools@14.6.0"
   fi
 fi
 

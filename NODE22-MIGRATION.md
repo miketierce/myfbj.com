@@ -9,7 +9,7 @@ This project has been migrated to Node.js 22 with PNPM 8 package manager. This d
 1. **Node.js Version**: Now requires Node.js 22 (previously Node.js 18)
 2. **Package Manager**: Standardized on PNPM 8
 3. **Firebase Functions Runtime**: Updated to Node.js 22 runtime
-4. **Firebase Tools**: Using version 13.48.0 (compatible with Node.js 22)
+4. **Firebase Tools**: Using version 14.6.0 (compatible with Node.js 22)
 
 ## Setup for Local Development
 

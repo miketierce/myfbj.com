@@ -36,7 +36,8 @@
 7. **CI/CD Pipeline Updates**
    - ✅ Updated GitHub Actions workflow for Node 22 + PNPM 8
    - ✅ Added Node 22 verification steps in the pipeline
-   - ✅ Updated Firebase CLI to v13.48.0 for Node 22 compatibility
+   - ✅ Updated Firebase CLI to v14.6.0 for Node 22 compatibility
+   - ✅ Improved lockfile management in CI pipeline
 
 8. **Testing & Verification**
    - ✅ Added test-functions-build.sh for verifying TypeScript builds

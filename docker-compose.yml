@@ -46,7 +46,7 @@ services:
         export PATH=/root/.local/share/pnpm:$$PATH &&
         pnpm config set node-linker hoisted &&
         pnpm config set strict-peer-dependencies false &&
-        npm install -g firebase-tools@13.48.0 &&
+        npm install -g firebase-tools@14.6.0 &&
         cd functions && pnpm install && cd .. &&
         firebase emulators:start --import=./.firebase-emulator-data --export-on-exit
       "
