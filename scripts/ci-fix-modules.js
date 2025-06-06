@@ -107,29 +107,70 @@ modulesToFix.forEach(({ name, binPaths, find, replace }) => {
 try {
   const possiblePaths = [
     path.join(process.cwd(), 'node_modules', 'better-sqlite3', 'lib', 'binding'),
-    path.join(process.cwd(), 'node_modules', 'better-sqlite3', 'build', 'Release')
+    path.join(process.cwd(), 'node_modules', 'better-sqlite3', 'build', 'Release'),
+    path.join(process.cwd(), 'node_modules', 'better-sqlite3', 'lib'),
+    path.join(process.cwd(), 'node_modules', 'better-sqlite3'),
+    path.join(process.cwd(), 'node_modules', 'better-sqlite3', 'node_modules')
   ];
 
-  for (const betterSqlitePath of possiblePaths) {
-    if (fs.existsSync(betterSqlitePath)) {
-      const files = fs.readdirSync(betterSqlitePath);
-      const wrapperFile = files.find(f => f.includes('-napi.node.js') || f.includes('.node.js'));
+  // Search more deeply for any potential wrapper files
+  for (const basePath of possiblePaths) {
+    if (fs.existsSync(basePath)) {
+      // Search recursively for potential wrapper files
+      console.log(`Searching for wrapper files in ${basePath}...`);
 
-      if (wrapperFile) {
-        const wrapperPath = path.join(betterSqlitePath, wrapperFile);
-        console.log(`Found better-sqlite3 wrapper file: ${wrapperFile}`);
+      const searchDir = (dir) => {
+        if (!fs.existsSync(dir)) return;
 
-        const content = fs.readFileSync(wrapperPath, 'utf8');
-        // Fix potential path issues in the wrapper
-        const fixedContent = content
-          .replace('require(\'./../../package.json\')', 'require(\'better-sqlite3/package.json\')')
-          .replace('require(\'./../../lib/', 'require(\'better-sqlite3/lib/');
+        try {
+          const files = fs.readdirSync(dir);
 
-        if (content !== fixedContent) {
-          fs.writeFileSync(wrapperPath, fixedContent);
-          console.log(`✅ Fixed better-sqlite3 wrapper file`);
+          for (const file of files) {
+            const fullPath = path.join(dir, file);
+
+            if (fs.statSync(fullPath).isDirectory()) {
+              // Recurse into directories, but don't go too deep
+              if (!fullPath.includes('node_modules/node_modules')) {
+                searchDir(fullPath);
+              }
+            } else if (file.endsWith('.js') || file.includes('.node.js') || file.includes('-napi.node.js')) {
+              // Check if this could be a wrapper file
+              try {
+                const content = fs.readFileSync(fullPath, 'utf8');
+
+                // Look for signs this is a wrapper file
+                if (content.includes('require(\'./rc\')') ||
+                  content.includes('./../../package.json') ||
+                  content.includes('./index.js')) {
+
+                  console.log(`Found potential wrapper file: ${fullPath}`);
+
+                  // Fix relative paths in the wrapper
+                  let fixedContent = content
+                    .replace(/require\(['"]\.\/rc['"]\)/g, 'require(\'rc\')')
+                    .replace(/require\(['"]\.\/\.\.\/\.\.\/package\.json['"]\)/g, 'require(\'better-sqlite3/package.json\')')
+                    .replace(/require\(['"]\.\/\.\.\/\.\.\/lib\//g, 'require(\'better-sqlite3/lib/')
+                    .replace(/require\(['"]\.\/index\.js['"]\)/g, 'require(\'@napi-rs/postinstall/index.js\')');
+
+                  if (content !== fixedContent) {
+                    fs.writeFileSync(fullPath, fixedContent);
+                    console.log(`✅ Fixed wrapper file: ${fullPath}`);
+                  } else {
+                    console.log(`No changes needed for ${fullPath}`);
+                  }
+                }
+              } catch (fileErr) {
+                console.log(`Error reading or processing file ${fullPath}: ${fileErr.message}`);
+              }
+            }
+          }
+        } catch (dirErr) {
+          console.log(`Error reading directory ${dir}: ${dirErr.message}`);
         }
-      }
+      };
+
+      // Start the recursive search
+      searchDir(basePath);
     }
   }
 } catch (error) {

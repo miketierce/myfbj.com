@@ -34,7 +34,8 @@
 1. **Early Module Fixes**:
    - Created `early-module-fix.js` script to run before installation
    - Creates necessary directories and shim files preemptively
-   - Installs required global packages
+   - Installs required global packages with specific versions (node-gyp@10.0.1, rc@1.2.8)
+   - Must run this script before any installation attempts
 
 2. **Module Shim Strategy**:
    - Created shim files in place of the expected modules
@@ -69,7 +70,16 @@
 4. **Handle native module issues** with Node.js version upgrades:
    - Create early fix scripts that run before dependencies are installed
    - Use multiple strategies (shims, symlinks, overrides)
-   - Install key packages globally to ensure they're available
+   - Install key packages globally with specific versions:
+     ```
+     npm install -g node-gyp@10.0.1 prebuild-install@7.1.1 @napi-rs/cli
+     npm install -g rc@1.2.8
+     ```
+   - Pass the correct environment variables during installation:
+     ```
+     NODE_GYP_FORCE_PYTHON=python3 NODEDIR=/opt/hostedtoolcache/node/22.15.0/x64
+     ```
+   - Ensure that scripts run in the correct order (early fixes → install → post-install fixes)
 
 ## Testing CI Workflow Changes
 

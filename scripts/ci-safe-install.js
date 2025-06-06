@@ -82,27 +82,80 @@ async function main() {
   }
 
   try {
-    // Install node-gyp and prebuild-install globally
+    // Install node-gyp and prebuild-install globally with specific versions
     log('Installing global dependencies...');
-    runCommand('npm install -g node-gyp@latest prebuild-install@latest');
+    runCommand('npm install -g node-gyp@10.0.1 prebuild-install@7.1.1 @napi-rs/cli');
 
     // Install RC module globally (needed for better-sqlite3)
     log('Installing rc module globally...');
     runCommand('npm install -g rc@1.2.8');
 
+    // Ensure node-gyp is properly configured
+    log('Configuring node-gyp...');
+    runCommand('node-gyp configure');
+
     // Create module shims BEFORE installation
+    log('Creating module shims BEFORE installation...');
     createModuleShims();
+
+    // Verify the global modules are accessible
+    try {
+      log('Verifying global modules...');
+      require.resolve('rc');
+      log('✅ rc module is accessible');
+      require.resolve('prebuild-install');
+      log('✅ prebuild-install module is accessible');
+      require.resolve('node-gyp');
+      log('✅ node-gyp module is accessible');
+    } catch (err) {
+      log(`⚠️ Global module verification failed: ${err.message}`);
+      log('Continuing installation process anyway...');
+    }
 
     // First install with nodedir to help native modules
     log('Running initial install with nodedir for native modules...');
+
+    // Set more environment variables to help with native module compilation
+    const env = {
+      NODE_GYP_FORCE_PYTHON: 'python3',
+      NODEDIR: NODE_DIR,
+      npm_config_nodedir: NODE_DIR,
+      npm_config_node_gyp: require.resolve('node-gyp'),
+      npm_config_build_from_source: 'true',
+      PREBUILD_INSTALL_FORCE_BUILD: '1'
+    };
+
+    log(`Using environment variables: ${JSON.stringify(env, null, 2)}`);
+
     const installSuccess = runCommand(
-      'NODE_GYP_FORCE_PYTHON=python3 ' +
-      `NODEDIR=${NODE_DIR} ` +
-      'pnpm install --no-frozen-lockfile --shamefully-hoist'
+      'pnpm install --no-frozen-lockfile --shamefully-hoist',
+      { env: { ...process.env, ...env } }
     );
 
     if (!installSuccess) {
-      throw new Error('Initial install failed');
+      log('⚠️ Initial install failed, attempting fallback install method...');
+
+      // Try installing just the problematic packages first
+      const fallbackSuccess = runCommand(
+        'npm install better-sqlite3@8.7.0 rc@1.2.8 unrs-resolver --force',
+        { env: { ...process.env, ...env } }
+      );
+
+      if (!fallbackSuccess) {
+        throw new Error('Both initial and fallback install methods failed');
+      }
+
+      log('✅ Fallback install of problematic packages succeeded, continuing with normal install...');
+
+      // Continue with the regular install now that problematic packages are installed
+      const continueSuccess = runCommand(
+        'pnpm install --no-frozen-lockfile --shamefully-hoist',
+        { env: { ...process.env, ...env } }
+      );
+
+      if (!continueSuccess) {
+        throw new Error('Install failed after fallback installation of problematic packages');
+      }
     }
 
     // Fix module paths if needed

@@ -8,13 +8,25 @@ When migrating to Node.js 22, certain native modules can have compatibility issu
 2. `unrs-resolver` failing with `Cannot find module './index.js'` during napi-postinstall
 3. Other native module related failures due to changes in Node.js 22 module resolution
 
+## Root Cause Analysis
+
+Node.js 22 has stricter module resolution rules that affect how relative imports are resolved in native module wrappers. The issues happen when:
+- A native module's build script uses a relative import like `require('./rc')`
+- The module structure in PNPM doesn't match what the script expects
+- Node.js 22 fails to resolve these relative paths that worked in earlier versions
+
 ## Solution Implemented
 
 We've implemented several fixes to address these issues:
 
 ### 1. PNPM Configuration Updates
 
-Added the following PNPM configuration settings:
+Added the following PNPM configuration settings to the .npmrc file:
+- `node-linker=hoisted` - Provides a more compatible node_modules structure
+- `strict-peer-dependencies=false` - Prevents peer dependency issues
+- `auto-install-peers=true` - Automatically installs peer dependencies
+- `resolution-mode=highest` - Uses the highest available version
+- `ignore-compatibility-db=true` - Ignores compatibility database checks
 - `prefer-frozen-lockfile=false` - Prevents strict lockfile validation
 - `node-gyp-force-latest=true` - Forces the latest node-gyp version
 - `symlink=false` - Avoids symlink issues that can cause module resolution problems

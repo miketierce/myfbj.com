@@ -17,10 +17,25 @@ const directories = [
   'node_modules/better-sqlite3/node_modules',
   'node_modules/unrs-resolver/node_modules',
   'node_modules/prebuild-install/node_modules',
-  'node_modules/@napi-rs/postinstall/node_modules'
+  'node_modules/@napi-rs/postinstall/node_modules',
+  // Add these additional directories to ensure all paths are covered
+  'node_modules/better-sqlite3/build/Release',
+  'node_modules/better-sqlite3/lib',
+  'node_modules/unrs-resolver/build',
+  'node_modules/.bin'
 ];
 
 console.log('🔧 Creating early module directories and shims...');
+
+// Create base node_modules directory first
+if (!fs.existsSync('node_modules')) {
+  try {
+    fs.mkdirSync('node_modules', { recursive: true });
+    console.log('✅ Created base node_modules directory');
+  } catch (error) {
+    console.log(`⚠️ Could not create node_modules directory: ${error.message}`);
+  }
+}
 
 // Create directories and shim files
 directories.forEach(dir => {
@@ -32,7 +47,7 @@ directories.forEach(dir => {
   }
 });
 
-// Create shim files
+// Create shim files with more comprehensive coverage
 const shims = [
   {
     path: 'node_modules/better-sqlite3/node_modules/rc.js',
@@ -45,13 +60,34 @@ const shims = [
   {
     path: 'node_modules/prebuild-install/node_modules/rc.js',
     content: 'module.exports = require(\'rc\');'
+  },
+  // Add additional locations for better coverage
+  {
+    path: 'node_modules/better-sqlite3/rc.js',
+    content: 'module.exports = require(\'rc\');'
+  },
+  {
+    path: 'node_modules/unrs-resolver/index.js',
+    content: 'module.exports = require(\'@napi-rs/postinstall/index.js\');'
+  },
+  {
+    path: 'node_modules/better-sqlite3/lib/rc.js',
+    content: 'module.exports = require(\'rc\');'
   }
 ];
 
+// Create shims in all the required locations
 shims.forEach(shim => {
   try {
     fs.writeFileSync(shim.path, shim.content);
     console.log(`✅ Created shim file: ${shim.path}`);
+
+    // Also ensure the proper permissions
+    try {
+      fs.chmodSync(shim.path, 0o755); // Make executable
+    } catch (chmodError) {
+      console.log(`⚠️ Could not set permissions on ${shim.path}: ${chmodError.message}`);
+    }
   } catch (error) {
     console.log(`⚠️ Could not create shim ${shim.path}: ${error.message}`);
   }
