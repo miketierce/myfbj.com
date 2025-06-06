@@ -7,12 +7,24 @@
 - **Fixed**: Updated all Firebase CLI commands to use the correct project ID output
 - **Fixed**: Modified conditional statements to use `env.ENVIRONMENT` instead of `steps.determine_env.outputs.ENVIRONMENT`
 
-### 2. Workflow Syntax Validation
+### 2. ES Module Compatibility Issues ⭐ **LATEST FIX**
+- **Fixed**: Converted all JavaScript scripts from CommonJS `require()` to ES modules `import`
+- **Updated Scripts**:
+  - `scripts/configure-firebase-branch.js` ✅
+  - `scripts/early-module-fix.js` ✅
+  - `scripts/verify-firebase-version.js` ✅
+  - `scripts/simple-verify-functions.js` ✅
+  - `scripts/ci-safe-install.js` ✅
+  - `scripts/verify-native-modules.js` ✅
+  - `scripts/ci-fix-modules.js` ✅
+- **Reason**: Project uses `"type": "module"` in package.json, requiring ES module syntax
+
+### 3. Workflow Syntax Validation
 - **Fixed**: All YAML syntax errors resolved
 - **Validated**: Workflow structure is now syntactically correct
 - **Created**: Workflow validation script (`scripts/validate-workflow.js`)
 
-### 3. Branch Configuration Logic
+### 4. Branch Configuration Logic
 - **Working**: `configure-firebase-branch.js` correctly generates branch-specific names
 - **Working**: `create-firebase-site.sh` properly creates Firebase Hosting sites
 - **Working**: Deploy targets are correctly set based on branch type

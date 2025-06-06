@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { execSync } = require('child_process');
+import { execSync } from 'child_process';
 
 console.log('Checking Firebase Tools version');
 
@@ -21,8 +21,8 @@ try {
 // Check if the Firebase Tools version is mentioned in key files
 console.log('\nChecking Firebase Tools version references in files');
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 const filesToCheck = [
   '.github/workflows/firebase-deploy.yml',

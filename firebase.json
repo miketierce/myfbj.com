@@ -22,7 +22,7 @@
       },
       {
         "source": "**",
-        "function": "server"
+        "function": "server-feature-awesome-new-feature"
       }
     ],
     "headers": [
@@ -53,7 +53,8 @@
           }
         ]
       }
-    ]
+    ],
+    "site": "feature-awesome-new-feature"
   },
   "firestore": {
     "rules": "firestore.rules",

@@ -9,8 +9,8 @@
  * 2. unrs-resolver - fixes require('./index.js') issue
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 // Paths to fix
 const modulesToFix = [

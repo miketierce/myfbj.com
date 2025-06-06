@@ -7,8 +7,8 @@
  * for Firebase Functions deployment.
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 // Colors for console output
 const colors = {

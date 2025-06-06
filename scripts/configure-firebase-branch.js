@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 const branchName = process.env.BRANCH_NAME; // This will be the sanitized branch slug
 const firebaseJsonPath = path.resolve(process.cwd(), 'firebase.json');

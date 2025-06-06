@@ -8,9 +8,9 @@
  * restoring it if there are issues.
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 // Configuration
 const NODE_DIR = process.env.NODE_DIR || '/opt/hostedtoolcache/node/22.15.0/x64';

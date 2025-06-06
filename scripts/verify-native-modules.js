@@ -7,9 +7,9 @@
  * and fixes any remaining issues. It should be run after installation.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
+import fs from 'fs';
+import path from 'path';
+import { execSync } from 'child_process';
 
 console.log('🔍 Verifying native modules installation...');
 
