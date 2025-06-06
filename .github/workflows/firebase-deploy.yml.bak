@@ -1,3 +1,6 @@
+
+name: Firebase Deploy
+
 name: Firebase Deploy
 
 on:
@@ -7,7 +10,7 @@ on:
       - main
       - dev
       - development
-      # We are removing the * pattern to prevent triggering on automated commits
+      # We're removing the '*' pattern to prevent triggering on automated commits
   pull_request:
     branches:
       - master
@@ -19,10 +22,10 @@ jobs:
     runs-on: ubuntu-latest
     # Skip if commit message contains any of these skip flags or is from GitHub Actions
     if: >-
-      !contains(github.event.head_commit.message, '[skip ci]') &&
-      !contains(github.event.head_commit.message, '[ci skip]') &&
-      !contains(github.event.head_commit.message, '[no ci]') &&
-      github.actor != 'github-actions[bot]' &&
+      !contains(github.event.head_commit.message, '[skip ci]') && 
+      !contains(github.event.head_commit.message, '[ci skip]') && 
+      !contains(github.event.head_commit.message, '[no ci]') && 
+      github.actor != 'github-actions[bot]' && 
       github.actor != 'GitHub-Actions'
 
     env:
@@ -31,6 +34,7 @@ jobs:
     # Add permissions for writing to the repository
     permissions:
       contents: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
