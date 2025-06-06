@@ -3,5 +3,5 @@
 </script>
 
 <template>
-  <div>Home page content</div>
+  <div>DEV Home page content</div>
 </template>
