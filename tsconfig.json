@@ -3,12 +3,12 @@
   "extends": "./.nuxt/tsconfig.json",
   "compilerOptions": {
     "paths": {
-      "~/*": ["./*"],
-      "@/*": ["./*"],
+      "~/*": ["./src/*"],
+      "@/*": ["./src/*"],
       "~~/*": ["./*"],
       "@@/*": ["./*"]
     },
     "types": ["node"]
   },
-  "include": ["./**/*.ts", "./**/*.d.ts", "./**/*.vue", "./types/**/*"]
+  "include": ["./**/*.ts", "./**/*.d.ts", "./**/*.vue", "src/types/**/*"]
 }

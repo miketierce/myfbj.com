@@ -17,7 +17,7 @@ import {
   vuetifyConfig,
   wireframeTheme,
   wireframeDarkTheme,
-} from '../vuetify.config'
+} from '~~/vuetify.config' // Adjusted path to use ~~ alias for root
 
 // Define Font Awesome icons for Vuetify 3
 const fontAwesomeAliases = {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Setup script for Node 22 + PNPM 8 development environment
-echo "📦 Setting up Node 22 + PNPM 8 development environment..."
+# Setup script for Node 22 + latest PNPM development environment
+echo "📦 Setting up Node 22 + latest PNPM development environment..."
 
 # Attempt to source nvm
 export NVM_DIR="$HOME/.nvm"
@@ -37,9 +37,9 @@ fi
 # Check if PNPM is installed
 if ! command -v pnpm >/dev/null 2>&1; then
   echo "❌ PNPM is not installed"
-  echo "💡 Installing PNPM 8..."
+  echo "💡 Installing latest PNPM..."
   # Ensure Node/npm is available for this global install
-  npm install -g pnpm@8
+  npm install -g pnpm
   # The original curl pipe might fail if npm isn't configured globally or if nvm hasn't set up global path correctly yet.
   # curl -fsSL https://get.pnpm.io/install.sh | sh -
   # source ~/.bashrc # Sourcing .bashrc in a script is often problematic
@@ -50,18 +50,7 @@ if ! command -v pnpm >/dev/null 2>&1; then
   pnpm config set auto-install-peers true
   pnpm config set resolution-mode highest
 else
-  pnpm_version=$(pnpm -v | cut -d. -f1)
-  if [ "$pnpm_version" -ne 8 ]; then
-    echo "⚠️ PNPM version $(pnpm -v) detected. This project requires PNPM 8"
-    echo "💡 Installing PNPM 8..."
-    npm install -g pnpm@8
-    pnpm config set node-linker hoisted
-    pnpm config set strict-peer-dependencies false
-    pnpm config set auto-install-peers true
-    pnpm config set resolution-mode highest
-  else
-    echo "✅ PNPM 8 is installed ($(pnpm -v))"
-  fi
+  echo "✅ PNPM is installed ($(pnpm -v))"
 fi
 
 # Check if Firebase CLI is installed
@@ -79,18 +68,18 @@ else
 fi
 
 # Install dependencies
-echo "📦 Installing project dependencies with PNPM 8..."
+echo "📦 Installing project dependencies with PNPM..."
 pnpm install
 
 echo "📦 Installing Firebase Functions dependencies..."
 cd functions && pnpm install && cd ..
 
-echo "✨ Setup complete! You're ready to develop with Node 22 and PNPM 8."
+echo "✨ Setup complete! You're ready to develop with Node 22 and PNPM."
 echo ""
 echo "Available commands:"
 echo "  🚀 pnpm dev             - Start development server"
 echo "  🔥 pnpm emulators       - Start Firebase emulators"
-echo "  🐳 pnpm docker:dev      - Start development in Docker (Node 22 + PNPM 8)"
+echo "  🐳 pnpm docker:dev      - Start development in Docker (Node 22 + latest PNPM)"
 echo "  🚢 pnpm build           - Build the application"
 echo "  🧪 pnpm check:node      - Check Node.js and PNPM versions"
 echo ""

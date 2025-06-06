@@ -2,6 +2,189 @@
 
 This project is a Nuxt 3 application with Firebase integration using both VueFire and Vuex. It provides a robust foundation for building web applications with Firebase backend services.
 
+## Getting Started
+
+This section guides new developers on setting up and running the project.
+
+**Prerequisites:**
+
+*   **Node.js:** Version 22 or higher. We recommend using [nvm (Node Version Manager)](https://github.com/nvm-sh/nvm) to manage Node.js versions.
+*   **pnpm:** Version 8 or higher.
+*   **Firebase CLI:** Version 13.48.0 or higher.
+*   **Git:** For version control.
+*   **(Optional) Docker:** For containerized development.
+
+**Initial Setup Steps:**
+
+1.  **Clone the Repository:**
+    ```bash
+    git clone <your-repository-url>
+    cd <your-project-name>
+    ```
+
+2.  **Run the Development Setup Script:**
+    This script will attempt to:
+    *   Verify and/or set up the correct Node.js version (using `nvm` if available).
+    *   Install or update `pnpm` to the required version.
+    *   Install or update Firebase CLI.
+    *   Install project dependencies.
+    ```bash
+    ./setup-dev.sh
+    ```
+    If the script encounters issues (e.g., `nvm` not found), it will provide guidance. You might need to install `nvm` manually first:
+    ```bash
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+    ```
+    Then, source `nvm` and try the `./setup-dev.sh` script again.
+
+3.  **Firebase Configuration:**
+    *   Create a Firebase project in the [Firebase Console](https://console.firebase.google.com/).
+    *   Create a web app in your Firebase project.
+    *   Copy your Firebase project configuration (apiKey, authDomain, etc.).
+    *   Create `config/firebase.config.js` (this file is gitignored) and add your configuration:
+        ```javascript
+        // /config/firebase.config.js
+        export default {
+          apiKey: "YOUR_API_KEY",
+          authDomain: "your-project.firebaseapp.com",
+          projectId: "your-project",
+          storageBucket: "your-project.appspot.com",
+          messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+          appId: "YOUR_APP_ID"
+          // measurementId: "YOUR_MEASUREMENT_ID" // Optional
+        };
+        ```
+    *   **(Server-Side Features)** For features requiring admin privileges (like some server routes or Firebase Admin SDK usage in `nuxt.config.ts` for VueFire):
+        *   Go to your Firebase Project Settings -> Service accounts.
+        *   Generate a new private key and download the JSON file.
+        *   Save this file as `service-account.json` in the root of your project (this file is gitignored).
+
+4.  **Environment Variables:**
+    *   Copy the example environment file:
+        ```bash
+        cp .env-example .env
+        ```
+    *   Review and update `.env` with your local development settings. Key variables include:
+        *   `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, etc. (if you prefer to manage them via env vars for the client-side part of Firebase, though `firebase.config.js` is also used).
+        *   `FIREBASE_PROJECT_ID` (can be useful for scripts or server-side logic).
+        *   `FIREBASE_USE_EMULATOR=true` (if you plan to use Firebase Emulators).
+    *   For different deployment environments, you'll also use `.env.dev` and `.env.prod`.
+
+5.  **FontAwesome Pro Setup (If Applicable):**
+    This project might be configured to use FontAwesome Pro. If so:
+    *   Copy the template `.npmrc.example` file to `.npmrc`:
+        ```bash
+        cp .npmrc.example .npmrc
+        ```
+    *   Edit the `.npmrc` file and replace `YOUR_TOKEN` with your actual FontAwesome Pro token.
+        ```
+        @awesome.me:registry=https://npm.fontawesome.com/
+        @fortawesome:registry=https://npm.fontawesome.com/
+        //npm.fontawesome.com/:_authToken=YOUR_ACTUAL_TOKEN
+        ```
+    *   Your `.npmrc` is gitignored. For CI/CD, the token is usually stored as a secret (e.g., `FONTAWESOME_TOKEN`).
+
+6.  **Install Dependencies (if not already done by `setup-dev.sh`):**
+    ```bash
+    pnpm install
+    ```
+
+**Running the Development Server:**
+
+*   **With Firebase Emulators (Recommended for full backend testing):**
+    ```bash
+    pnpm dev:emulators
+    ```
+    This starts the Firebase emulators and then the Nuxt development server. The app will be available at `http://localhost:3000`. Emulators UI is usually at `http://localhost:4000`.
+
+*   **Nuxt Development Server Only:**
+    ```bash
+    pnpm dev
+    ```
+    The app will be available at `http://localhost:3000`.
+
+**Key Scripts:**
+
+*   `pnpm dev`: Starts the Nuxt development server.
+*   `pnpm build`: Builds the application for production.
+*   `pnpm preview`: Locally previews the production build.
+*   `pnpm emulators`: Starts Firebase emulators.
+*   `pnpm dev:emulators`: Starts emulators and the dev server.
+*   `./setup-dev.sh`: Runs the initial development environment setup.
+*   `pnpm verify:node22`: Checks if Node.js and pnpm versions meet project requirements.
+
+## Project Structure Overview
+
+This project now uses a `src/` directory for most of its Nuxt-related application code.
+
+**Root Directory Structure:**
+
+The following table describes the main files and folders remaining in the project's root directory:
+
+| File/Folder             | Description                                                                                                |
+| :---------------------- | :--------------------------------------------------------------------------------------------------------- |
+| `.data/`                | Used for local data storage, often by Firebase emulators or other development tools. (Gitignored)        |
+| `.env`                  | Local environment variables. (Gitignored)                                                                  |
+| `.env-example`          | Example environment file, a template for `.env`.                                                           |
+| `.env.dev`              | Environment variables for development-specific builds/deployments.                                           |
+| `.env.prod`             | Environment variables for production-specific builds/deployments.                                            |
+| `.git/`                 | Git version control system directory.                                                                      |
+| `.github/`              | GitHub specific files, typically for workflows (CI/CD), issue templates, etc.                              |
+| `.gitignore`            | Specifies intentionally untracked files that Git should ignore.                                            |
+| `.node-version`         | Used by version managers like `asdf` to specify the Node.js version for the project.                       |
+| `.npmrc`                | Configuration file for npm; pnpm can also use it for certain settings (e.g., FontAwesome token).           |
+| `.nuxt/`                | Nuxt.js build directory, generated during development and build. (Gitignored)                              |
+| `.nvmrc`                | Specifies the Node.js version for NVM (Node Version Manager).                                              |
+| `.output/`              | Default Nuxt 3 build output directory. (Gitignored)                                                        |
+| `.pnpmrc`               | Configuration file for pnpm.                                                                               |
+| `NODE22-MIGRATION.md`   | Markdown document detailing the migration to Node.js 22.                                                   |
+| `README.md`             | This file: provides information about the project.                                                         |
+| `VUEX-INTEGRATION.md`   | Markdown document explaining Vuex integration details.                                                     |
+| `config/`               | Contains project-specific configurations, notably `firebase.config.js`.                                    |
+| `devEnv_base64.txt`     | Base64 encoded development environment variables, typically for CI/CD pipeline injection. (Gitignored)     |
+| `docker-compose.yml`    | Docker Compose file for defining and running multi-container Docker applications.                          |
+| `eslint.config.mjs`     | ESLint (linter) configuration file (JavaScript module format).                                             |
+| `firebase.json`         | Firebase project configuration (hosting rules, functions deployment settings, emulator settings, etc.).    |
+| `firestore.indexes.json`| Defines Firestore database indexes for optimal query performance.                                          |
+| `firestore.rules`       | Security rules for Firestore, defining data access permissions.                                            |
+| `functions/`            | Directory for Firebase Cloud Functions source code (Node.js environment).                                  |
+| `monitor-functions.js`  | Script for monitoring Firebase Cloud Functions performance.                                                |
+| `node_modules/`         | Directory where project dependencies are installed by pnpm. (Gitignored)                                   |
+| `nuxt.config.ts`        | Main Nuxt.js configuration file. Defines modules, plugins, build settings, runtime config, etc.            |
+| `package.json`          | Defines project metadata, dependencies (npm/pnpm packages), and scripts.                                   |
+| `pnpm-lock.yaml`        | Pnpm lockfile, ensures consistent and reproducible dependency installs across all environments.            |
+| `pnpm-workspace.yaml`   | Pnpm workspace configuration file (if using pnpm workspaces for monorepo setup).                           |
+| `prodEnv_base64.txt`    | Base64 encoded production environment variables, for CI/CD. (Gitignored)                                   |
+| `scripts/`              | Contains utility scripts for the project (e.g., `configure-storage-cors.js`).                              |
+| `service-account.json`  | Firebase service account credentials (JSON key file) for server-side admin access. (Gitignored)            |
+| `setup-dev.sh`          | Shell script for automating the initial development environment setup.                                     |
+| `storage.rules`         | Security rules for Firebase Cloud Storage.                                                                 |
+| `tsconfig.json`         | TypeScript configuration file for the project root (global settings, references).                          |
+| `verify-node22.js`      | Script to verify that the Node.js 22 environment is correctly set up.                                      |
+
+**`src/` Directory Structure:**
+
+The `src/` directory now contains the core Nuxt application code:
+
+```
+src/
+├── assets/            # Static assets (SCSS, global CSS, images not in public/)
+├── components/        # Reusable Vue components
+├── composables/       # Vue 3 composables (shared reactive logic)
+├── content/           # Markdown or other content files (if using @nuxt/content or similar)
+├── layouts/           # Nuxt page layouts
+├── middleware/        # Nuxt route middleware
+├── pages/             # Application pages (defines routes)
+├── plugins/           # Nuxt plugins (Vue plugins, global utilities)
+├── public/            # Static files served directly from the root (e.g., favicon.ico, robots.txt)
+├── server/            # Server-side API routes and middleware (Nitro server engine)
+├── store/             # Vuex store modules (if using Vuex)
+├── types/             # TypeScript type definitions specific to the Nuxt app
+├── app.html           # Main HTML template for Nuxt pages (if app.html.bak is renamed)
+├── content.config.ts  # Configuration for @nuxt/content (if used)
+└── vuetify.config.ts  # Configuration for Vuetify
+```
+
 ## Template Repository
 
 This project is set up as a template repository, which means you can:
@@ -495,34 +678,20 @@ const {
 
 See the [VUEX-INTEGRATION.md](./VUEX-INTEGRATION.md) file for detailed information about the Vuex and VueFire integration.
 
-## Project Structure
-
-- `components/`: Vue components
-- `composables/`: Vue composables for shared functionality
-- `config/`: Configuration files
-- `layouts/`: Nuxt layouts
-- `middleware/`: Nuxt middleware
-- `pages/`: Application pages
-- `plugins/`: Nuxt plugins
-- `public/`: Public assets
-- `server/`: Server-side code
-- `store/`: Vuex store and modules
-
-## Key Features
-
-- **Authentication**: Firebase authentication with Vuex state management
-- **Firestore Integration**: Real-time database with VueFire and VuexFire
-- **Form Management**: Multiple form management approaches
-- **SSR Support**: Server-side rendering with Firebase
-- **Vuetify**: Material Design component framework
-
 ## Deployment
 
-### Local Deployment
+To deploy this Nuxt app with Firebase integration, you have multiple options:
 
-To deploy to Firebase from your local development environment:
+1. **Firebase Hosting (Recommended)**: For deploying the app as a static site with Firebase's global CDN.
+2. **Vercel**: For deploying as a server-rendered app with Vercel's platform.
+3. **Netlify**: For deploying as a static site with Netlify's platform.
+4. **Docker**: For containerized deployment on any platform that supports Docker.
 
-1. Make sure you have the Firebase CLI installed:
+### Firebase Hosting Setup
+
+To deploy to Firebase Hosting:
+
+1. Install Firebase CLI if you haven't already:
    ```bash
    npm install -g firebase-tools@14.6.0
    ```
@@ -581,73 +750,49 @@ This project is configured to use Firebase Gen2 functions for enhanced performan
 }
 ```
 
-## Deployment Options
+### Vercel Deployment
 
-### Local Development with Emulators
+To deploy on Vercel:
 
-For local development without deploying to Firebase, you can use Firebase emulators which simulate Firebase services locally:
+1. Push your code to a GitHub repository.
+2. Import your GitHub repository in Vercel.
+3. Set the framework preset to "Next.js".
+4. Set up environment variables in Vercel's dashboard.
+5. Deploy the site.
 
-```bash
-# Start Firebase emulators with data persistence
-pnpm emulators
+Vercel will automatically detect the Nuxt.js framework and configure the deployment settings.
 
-# Start both Firebase emulators and Nuxt dev server
-pnpm dev:emulators
-```
+### Netlify Deployment
 
-The emulators will save their state between restarts in the `.firebase-emulator-data` directory.
+To deploy on Netlify:
 
-### Branch-specific Preview Deployments
+1. Push your code to a GitHub repository.
+2. Import your GitHub repository in Netlify.
+3. Set the build command to `nuxt generate` and the publish directory to `dist`.
+4. Set up environment variables in Netlify's dashboard.
+5. Deploy the site.
 
-For testing branches in a live environment without affecting production, use Firebase Hosting preview channels:
+Netlify will build the site as a static site using the generated files.
 
-```bash
-# Deploy current branch to a preview channel (using current Firebase project)
-pnpm deploy:preview
+### Docker Deployment
 
-# Deploy current branch to a preview channel using the dev project
-pnpm deploy:preview:dev
+To deploy using Docker:
 
-# Get the URL of your preview deployment
-pnpm save:preview-url
-```
+1. Build the Docker image:
+   ```bash
+   docker build -t your-image-name .
+   ```
 
-Preview deployments will:
-- Create a unique URL based on your branch name
-- Share the same Firebase project (but won't affect the live site)
-- Automatically expire after 7 days (configurable in the script)
-- Allow you to share a working version with teammates for review
+2. Run the Docker container:
+   ```bash
+   docker run -p 3000:3000 your-image-name
+   ```
 
-Example preview URL format: `https://your-branch-name--your-firebase-project.web.app`
+3. Access the app at `http://localhost:3000`.
 
-### Manual Preview Channel Management
+For production, consider using Docker Compose or Kubernetes for orchestration.
 
-You can also manage preview channels directly:
-
-```bash
-# List all active preview channels
-firebase hosting:channel:list
-
-# Delete a specific preview channel
-firebase hosting:channel:delete CHANNEL_ID
-
-# Open the preview URL in your browser
-firebase hosting:channel:open CHANNEL_ID
-```
-
-### Production Deployment
-
-For production deployment, continue using:
-
-```bash
-# Build and deploy to production
-pnpm deploy
-
-# Build, configure CORS, and deploy to production
-pnpm deploy:with-cors
-```
-
-## CI/CD with GitHub Actions
+### CI/CD with GitHub Actions
 
 This project includes a GitHub Actions workflow for automatic deployment to Firebase. The workflow:
 

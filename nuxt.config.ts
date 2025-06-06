@@ -87,18 +87,16 @@ console.log('Runtime Firebase config:', {
 })
 
 export default defineNuxtConfig({
-  srcDir: './',
+  srcDir: 'src',
   compatibilityDate: '2025-05-15',
   devtools: { enabled: true },
   build: {
     transpile: ['vuetify', 'vue-recaptcha-v3'],
   },
-  // Ensure proper auto-imports for all content features
   imports: {
-    dirs: ['./composables'], // This will be relative to srcDir (src/composables)
+    dirs: ['src/composables'],
     global: true,
   },
-
   // Move VueFire configuration to the top-level vuefire property as per docs
   vuefire: {
     config: runtimeFirebaseConfig,
@@ -125,7 +123,6 @@ export default defineNuxtConfig({
       enablePersistence: process.client,
     },
   },
-
   modules: [
     // Add VueFire module first to ensure it initializes Firebase before other plugins
     'nuxt-vuefire',
@@ -143,10 +140,20 @@ export default defineNuxtConfig({
   ],
 
   components: [
-    // User's original component paths - Restored
-    { path: '@/components' }, // @ will point to srcDir (src/components)
-    { path: '@/components/prose' },
-    { path: '@/components/forms' },
+    {
+      path: 'components', // Default components directory, relative to srcDir
+      pathPrefix: false,
+    },
+    {
+      path: 'components/forms', // Form-specific components, relative to srcDir
+      pathPrefix: true,
+      prefix: 'Forms',
+    },
+    {
+      path: 'components/prose', // For Markdown/content rendering, relative to srcDir
+      pathPrefix: true,
+      prefix: 'Prose',
+    },
   ],
 
   // Runtime configuration
@@ -261,9 +268,8 @@ export default defineNuxtConfig({
   },
   // Include only necessary CSS files
   css: [
-    '@/assets/css/theme-initializer.css',
-    'vuetify/styles',
-    '@mdi/font/css/materialdesignicons.css',
-    '@fortawesome/fontawesome-free/css/all.css',
+    'assets/css/theme-initializer.css', // Initialize theme before Vuetify loads
+    'vuetify/lib/styles/main.sass', // Vuetify styles
+    '@mdi/font/css/materialdesignicons.css', // Material Design Icons
   ],
 })

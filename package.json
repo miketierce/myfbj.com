@@ -3,8 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.0.0",
-    "pnpm": "^8.0.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "build": "nuxt build",
@@ -54,14 +53,12 @@
     "@nuxt/scripts": "0.11.7",
     "@nuxt/types": "^2.18.1",
     "@unhead/vue": "^2.0.3",
-    "better-sqlite3": "^11.10.0",
     "eslint": "^9.0.0",
     "firebase": "^11.9.0",
     "firebase-admin": "^13.3.0",
     "firebase-functions": "^6.3.2",
     "firebase-tools": "^14.6.0",
     "js-image-compressor": "2.0.0",
-    "node-gyp": "^11.2.0",
     "nuxt": "^3.17.3",
     "nuxt-vuefire": "1.0.5",
     "vee-validate": "3.3.9",
@@ -76,16 +73,13 @@
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0",
+    "sass-embedded": "^1.89.1",
     "vite-plugin-vuetify": "^2.1.1",
     "vuetify": "^3.8.5"
   },
-  "onlyBuiltDependencies": [
-    "better-sqlite3"
-  ],
   "trustedDependencies": [
     "@firebase/util",
     "@parcel/watcher",
-    "better-sqlite3",
     "esbuild",
     "protobufjs",
     "re2",
