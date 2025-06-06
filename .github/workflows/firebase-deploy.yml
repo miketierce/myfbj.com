@@ -94,7 +94,7 @@ jobs:
 
       - name: Configure Firebase for Branch
         id: configure_firebase
-        if: steps.determine_env.outputs.ENVIRONMENT == \'development\' # Only run for dev environment
+        if: steps.determine_env.outputs.ENVIRONMENT == 'development' # Only run for dev environment
         run: |
           node ./scripts/configure-firebase-branch.js
         env:
