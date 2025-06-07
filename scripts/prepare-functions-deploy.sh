@@ -42,7 +42,7 @@ else
     echo "PNPM not found, using npm instead..."
     npm install --only=prod
   fi
-  
+
   # Verify firebase-functions package is installed
   if [ -d "node_modules/firebase-functions" ]; then
     echo "✅ firebase-functions package successfully installed"
@@ -75,18 +75,18 @@ fi
 # Create branch-specific function export
 if [ -n "$ENTRY_POINT" ]; then
   echo "📝 Found entry point: $ENTRY_POINT"
-  
+
   # For branch-specific deployments, create a wrapper that exports the function correctly
   if [ "$EXPECTED_FUNCTION_NAME" != "server" ]; then
     echo "🔄 Creating branch-specific function export: $EXPECTED_FUNCTION_NAME"
-    
+
     # Backup original entry point with .mjs extension to maintain module compatibility
     if [[ "$ENTRY_POINT" == *.mjs ]]; then
       cp "$ENTRY_POINT" "server-original.mjs"
     else
       cp "$ENTRY_POINT" "server-original.js"
     fi
-    
+
     # Create new entry point that exports both default and branch-specific function
     if [[ "$ENTRY_POINT" == *.mjs ]]; then
       # For .mjs files (ES modules)
@@ -109,7 +109,7 @@ exports.server = server;
 exports['${EXPECTED_FUNCTION_NAME}'] = server;
 EOF
     fi
-    
+
     echo "✅ Created branch-specific export for function: $EXPECTED_FUNCTION_NAME"
   else
     echo "✅ Using default function name: $EXPECTED_FUNCTION_NAME"

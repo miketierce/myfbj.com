@@ -54,7 +54,7 @@
         ]
       }
     ],
-    "site": "dev-test-devour4"
+    "site": "dev-test-devour"
   },
   "firestore": {
     "rules": "firestore.rules",

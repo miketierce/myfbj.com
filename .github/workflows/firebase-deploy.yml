@@ -473,6 +473,13 @@ jobs:
           echo "  Timeout: $firebase_timeout s"
           echo "  Concurrency: $firebase_concurrency"
 
+          # Set hosting site for branch deployments
+          if [[ "${{ env.ENVIRONMENT }}" == "development" && -n "${{ steps.configure_firebase.outputs.hosting_site_id }}" ]]; then
+            echo "Setting Firebase hosting site for branch deployment..."
+            echo "Site ID: ${{ steps.configure_firebase.outputs.hosting_site_id }}"
+            firebase hosting:sites:set ${{ steps.configure_firebase.outputs.hosting_site_id }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive
+          fi
+
           # Deploy each component separately to isolate any issues
           echo "Deploying Firestore rules and indexes..."
           firebase deploy --only ${{ steps.deploy_targets.outputs.firestore_target_arg }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive || echo "Firestore rules deployment failed, will try to continue with the rest"
@@ -481,10 +488,21 @@ jobs:
           firebase deploy --only ${{ steps.deploy_targets.outputs.storage_target_arg }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive || echo "Storage rules deployment failed, will try to continue with the rest"
 
           echo "Deploying hosting..."
-          firebase deploy --only ${{ steps.deploy_targets.outputs.hosting_target_arg }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
+          if [[ "${{ env.ENVIRONMENT }}" == "development" && -n "${{ steps.configure_firebase.outputs.hosting_site_id }}" ]]; then
+            echo "Deploying to branch-specific hosting site: ${{ steps.configure_firebase.outputs.hosting_site_id }}"
+            firebase deploy --only hosting:${{ steps.configure_firebase.outputs.hosting_site_id }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
+          else
+            echo "Deploying to default hosting site"
+            firebase deploy --only hosting --project ${{ steps.determine_env.outputs.project_id }} --non-interactive || echo "Hosting deployment failed, will try to continue with functions"
+          fi
 
           # Run our custom script to ensure functions are properly prepared
           echo "Running prepare-functions-deploy script to ensure all dependencies are in place..."
+
+          # Set the function name for the prepare script
+          export FIREBASE_FUNCTION_NAME="${{ steps.configure_firebase.outputs.function_name || 'server' }}"
+          echo "Setting FIREBASE_FUNCTION_NAME to: $FIREBASE_FUNCTION_NAME"
+
           bash ./scripts/prepare-functions-deploy.sh
 
           echo "Deploying functions..."

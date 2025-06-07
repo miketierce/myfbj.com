@@ -89,7 +89,7 @@ if (!firebaseConfig.storage) {
   firebaseConfig.storage = { rules: 'storage.rules' };
 }
 
-// Ensure basic firestore configuration exists  
+// Ensure basic firestore configuration exists
 if (!firebaseConfig.firestore) {
   firebaseConfig.firestore = {
     rules: 'firestore.rules',
