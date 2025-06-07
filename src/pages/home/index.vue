@@ -3,5 +3,5 @@
 </script>
 
 <template>
-  <div>DEV-TEST BRANCH Home page content</div>
+  <div>Home page content</div>
 </template>
