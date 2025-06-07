@@ -22,7 +22,7 @@
       },
       {
         "source": "**",
-        "function": "server-dev-test"
+        "function": "server"
       }
     ],
     "headers": [
@@ -53,8 +53,7 @@
           }
         ]
       }
-    ],
-    "site": "dev-test-devour4"
+    ]
   },
   "firestore": {
     "rules": "firestore.rules",
