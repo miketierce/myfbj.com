@@ -16,28 +16,41 @@ fi
 
 echo "🔍 Checking if Firebase Hosting site '$SITE_ID' exists in project '$PROJECT_ID'..."
 
-# Check if site already exists
-if firebase hosting:sites:list --project "$PROJECT_ID" --json | jq -e ".[] | select(.name == \"$SITE_ID\")" > /dev/null 2>&1; then
+# Check if site already exists using the most reliable method
+# Firebase API returns site names as "projects/PROJECT_ID/sites/SITE_ID"
+if firebase hosting:sites:list --project "$PROJECT_ID" --json | jq -e ".[] | select(.name | endswith(\"/$SITE_ID\"))" > /dev/null 2>&1; then
   echo "✅ Site '$SITE_ID' already exists"
   exit 0
 fi
 
 echo "🏗️  Creating new Firebase Hosting site: $SITE_ID"
 
-# Create the site
-if firebase hosting:sites:create "$SITE_ID" --project "$PROJECT_ID"; then
+# Create the site and capture the output
+create_output=$(firebase hosting:sites:create "$SITE_ID" --project "$PROJECT_ID" 2>&1)
+create_exit_code=$?
+
+if [ $create_exit_code -eq 0 ]; then
   echo "✅ Successfully created Firebase Hosting site: $SITE_ID"
-  echo "🌐 Site will be available at: https://$SITE_ID.$PROJECT_ID.web.app"
+  echo "🌐 Site will be available at: https://$SITE_ID.web.app"
 else
-  echo "❌ Failed to create Firebase Hosting site: $SITE_ID"
-  echo "💡 This might be because:"
-  echo "   - Site name already exists globally (Firebase site names must be unique across all projects)"
-  echo "   - Insufficient permissions"
-  echo "   - Invalid site name format"
-  echo ""
-  echo "🔧 SOLUTION: The configure-firebase-branch.js script has been updated to generate"
-  echo "   more unique site names by combining branch name + project ID suffix."
-  echo "   If you're still seeing this error, the generated name might still conflict."
-  echo "   Consider using a different branch name or contact support."
-  exit 1
+  # Check if the error is because site already exists
+  if echo "$create_output" | grep -q "already exists"; then
+    echo "✅ Site '$SITE_ID' already exists (detected from creation attempt)"
+    echo "🌐 Site is available at: https://$SITE_ID.web.app"
+    exit 0
+  else
+    echo "❌ Failed to create Firebase Hosting site: $SITE_ID"
+    echo "📝 Firebase CLI output:"
+    echo "$create_output"
+    echo ""
+    echo "💡 This might be because:"
+    echo "   - Site name already exists globally (Firebase site names must be unique across all projects)"
+    echo "   - Insufficient permissions"
+    echo "   - Invalid site name format"
+    echo ""
+    echo "🔧 SOLUTION: The configure-firebase-branch.js script generates unique names"
+    echo "   by combining branch name + project ID suffix. If you're still seeing this error,"
+    echo "   the generated name might still conflict. Consider using a different branch name."
+    exit 1
+  fi
 fi
