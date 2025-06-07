@@ -370,8 +370,13 @@ jobs:
           echo "Firebase Functions preparation complete"
 
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools@14.6.0
-        # Using v14.6.0 which is compatible with Node.js 22
+        run: |
+          npm install -g firebase-tools@14.6.0
+          # Install gcloud CLI for Auth domain management
+          curl -sSL https://sdk.cloud.google.com | bash
+          export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+          echo "$HOME/google-cloud-sdk/bin" >> $GITHUB_PATH
+        # Using Firebase Tools v14.6.0 which is compatible with Node.js 22
 
       - name: Create Firebase Hosting Site (if needed)
         if: github.event_name == 'push' && env.ENVIRONMENT == 'development' && steps.configure_firebase.outputs.hosting_site_id != ''
@@ -386,6 +391,17 @@ jobs:
 
           # Create site if it doesn't exist (final version with comprehensive error handling)
           bash ./scripts/create-firebase-site-final.sh "${{ steps.configure_firebase.outputs.hosting_site_id }}" "${{ steps.determine_env.outputs.project_id }}"
+
+      - name: Configure Firebase Auth Authorized Domains
+        if: github.event_name == 'push' && env.ENVIRONMENT == 'development' && steps.configure_firebase.outputs.hosting_site_id != ''
+        run: |
+          export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
+          echo "🔐 Configuring Firebase Auth authorized domains for new site..."
+          echo "Site ID: ${{ steps.configure_firebase.outputs.hosting_site_id }}"
+          echo "Project ID: ${{ steps.determine_env.outputs.project_id }}"
+
+          # Configure authorized domains for the new hosting site
+          node ./scripts/configure-auth-domains.js "${{ steps.configure_firebase.outputs.hosting_site_id }}" "${{ steps.determine_env.outputs.project_id }}" || echo "⚠️  Auth domain configuration failed, but deployment will continue"
 
       - name: Set Deploy Targets
         id: deploy_targets
