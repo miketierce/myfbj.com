@@ -53,7 +53,8 @@ if (!branchName || defaultBranches.includes(branchName)) {
 }
 
 // For feature branches, create unique names
-const functionName = `server-${branchName}`;
+// Replace dashes with underscores since Firebase function names cannot contain dashes
+const functionName = `server_${branchName.replace(/-/g, '_')}`;
 
 // Get Firebase project ID from environment variable or command line
 const firebaseProjectId = process.argv[3] || process.env.FIREBASE_PROJECT_ID;
