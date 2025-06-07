@@ -25,6 +25,7 @@
         "function": "server_dev_integration_test"
       }
     ],
+    "site": "dev-integration-test-devour",
     "headers": [
       {
         "source": "**/*.{js,css}",
@@ -53,8 +54,7 @@
           }
         ]
       }
-    ],
-    "site": "dev-integration-test-devour"
+    ]
   },
   "firestore": {
     "rules": "firestore.rules",

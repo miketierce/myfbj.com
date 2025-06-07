@@ -109,6 +109,24 @@ jobs:
           BRANCH_NAME: ${{ steps.branch_name.outputs.branch_slug }}
           FIREBASE_PROJECT_ID: ${{ steps.determine_env.outputs.project_id }}
 
+      - name: Configure Firebase for Production
+        id: configure_production
+        if: env.ENVIRONMENT == 'production' # Only run for production environment
+        run: |
+          echo "Configuring firebase.json for production deployment..."
+
+          # Use jq to modify firebase.json for production
+          jq '.hosting.rewrites[3].function = "server" | del(.hosting.site)' firebase.json > firebase.json.tmp
+          mv firebase.json.tmp firebase.json
+
+          echo "Production firebase.json configuration:"
+          echo "Function: server"
+          echo "Site: default (no site specified)"
+
+          # Set outputs for deployment step
+          echo "function_name=server" >> $GITHUB_OUTPUT
+          echo "hosting_site_id=" >> $GITHUB_OUTPUT
+
       - name: Setup Firebase service account
         run: |
           # Ensure jq is installed (for JSON validation)
@@ -407,24 +425,31 @@ jobs:
           firestore_target_arg="firestore"
           storage_target_arg="storage"
           hosting_target_arg="hosting"
-          functions_target_arg="functions:server" # Default to production/mainline targets
+          functions_target_arg="functions:server" # Default fallback
 
-          # Check if we are in a development environment (any non-master/main branch)
-          if [[ "$ENVIRONMENT" == "development" ]]; then
-            # The 'configure_firebase' step runs only for 'development' environment.
-            # Its outputs will contain the branch-specific names.
+          # Check environment and use appropriate configuration outputs
+          if [[ "${{ env.ENVIRONMENT }}" == "development" ]]; then
+            # Use outputs from branch configuration step
             dev_hosting_site_id="${{ steps.configure_firebase.outputs.hosting_site_id }}"
             dev_function_name="${{ steps.configure_firebase.outputs.function_name }}"
 
-            # For development branches, we'll use targeted deployments only for hosting and functions
-            # Firestore and Storage will use default targets to avoid configuration complexity
+            # For development branches, use targeted deployments for hosting and functions
             if [[ -n "$dev_hosting_site_id" ]]; then
               hosting_target_arg="hosting:$dev_hosting_site_id"
             fi
 
-            # If dev_function_name is set (it should be, e.g., 'server-branch' or 'server' for 'dev' branch)
             if [[ -n "$dev_function_name" ]]; then
               functions_target_arg="functions:$dev_function_name"
+            fi
+          elif [[ "${{ env.ENVIRONMENT }}" == "production" ]]; then
+            # Use outputs from production configuration step
+            prod_function_name="${{ steps.configure_production.outputs.function_name }}"
+            prod_hosting_site_id="${{ steps.configure_production.outputs.hosting_site_id }}"
+
+            # Production uses default hosting (no site specified) and server function
+            hosting_target_arg="hosting"
+            if [[ -n "$prod_function_name" ]]; then
+              functions_target_arg="functions:$prod_function_name"
             fi
           fi
 
@@ -433,6 +458,7 @@ jobs:
           echo "hosting_target_arg=$hosting_target_arg" >> "$GITHUB_OUTPUT"
           echo "functions_target_arg=$functions_target_arg" >> "$GITHUB_OUTPUT"
 
+          echo "Environment: ${{ env.ENVIRONMENT }}"
           echo "Will use Firestore Target: $firestore_target_arg"
           echo "Will use Storage Target: $storage_target_arg"
           echo "Will use Hosting Target: $hosting_target_arg"
