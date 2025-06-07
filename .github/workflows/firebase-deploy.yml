@@ -384,8 +384,8 @@ jobs:
           # Use the project
           firebase use ${{ steps.determine_env.outputs.project_id }} --non-interactive
 
-          # Create site if it doesn't exist (using debug version for troubleshooting)
-          bash ./scripts/debug-firebase-site.sh "${{ steps.configure_firebase.outputs.hosting_site_id }}" "${{ steps.determine_env.outputs.project_id }}"
+          # Create site if it doesn't exist (final version with comprehensive error handling)
+          bash ./scripts/create-firebase-site-final.sh "${{ steps.configure_firebase.outputs.hosting_site_id }}" "${{ steps.determine_env.outputs.project_id }}"
 
       - name: Set Deploy Targets
         id: deploy_targets
