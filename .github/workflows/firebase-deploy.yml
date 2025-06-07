@@ -372,10 +372,8 @@ jobs:
       - name: Install Firebase CLI
         run: |
           npm install -g firebase-tools@14.6.0
-          # Install gcloud CLI for Auth domain management
-          curl -sSL https://sdk.cloud.google.com | bash
-          export PATH="$HOME/google-cloud-sdk/bin:$PATH"
-          echo "$HOME/google-cloud-sdk/bin" >> $GITHUB_PATH
+          # Install Firebase Admin SDK for Auth domain management
+          npm install firebase-admin@12.0.0
         # Using Firebase Tools v14.6.0 which is compatible with Node.js 22
 
       - name: Create Firebase Hosting Site (if needed)

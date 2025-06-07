@@ -8,9 +8,9 @@
  *
  * Usage:
  * node scripts/configure-auth-domains.js <site-id> <project-id>
- * 
+ *
  * Example:
- * node scripts/configure-auth-domains.js dev-test-devour4 devour-4a8f0
+ * node scripts/configure-auth-domains.js dev-test-feature123 your-firebase-project-id
  */
 
 import { execSync } from 'child_process';
@@ -28,49 +28,53 @@ const __dirname = path.dirname(__filename);
 function getCurrentAuthorizedDomains(projectId) {
   try {
     console.log('🔍 Fetching current authorized domains...');
-    
-    // Try using gcloud CLI first (more reliable for auth domains)
-    try {
-      const result = execSync(`gcloud firebase auth domains list --project=${projectId} --format=json`, {
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: 15000 // 15 second timeout
-      });
-      
-      const domains = JSON.parse(result);
-      const domainList = domains.map(d => d.domain || d);
-      console.log(`📋 Found ${domainList.length} current authorized domains via gcloud`);
-      return domainList;
-    } catch (gcloudError) {
-      console.warn('⚠️  gcloud CLI failed, trying Firebase CLI...');
-    }
-    
-    // Fallback to Firebase CLI with timeout
-    const output = execSync(`firebase auth:export auth-config.json --project ${projectId}`, {
+
+    // Use Firebase Admin SDK to get auth config
+    const configScript = `
+const admin = require('firebase-admin');
+const serviceAccount = require('./service-account.json');
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  projectId: '${projectId}'
+});
+
+async function getDomains() {
+  try {
+    const authConfig = await admin.auth().getConfig();
+    const domains = authConfig.authorizedDomains || [];
+    console.log(JSON.stringify(domains));
+  } catch (error) {
+    console.error('Error:', error.message);
+    process.exit(1);
+  }
+}
+
+getDomains();
+    `;
+
+    fs.writeFileSync('temp-get-domains.js', configScript);
+
+    const result = execSync(`node temp-get-domains.js`, {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 15000 // 15 second timeout
+      timeout: 15000
     });
-    
-    // Read the exported config
-    if (fs.existsSync('auth-config.json')) {
-      const authConfig = JSON.parse(fs.readFileSync('auth-config.json', 'utf8'));
-      
-      // Clean up the temporary file
-      fs.unlinkSync('auth-config.json');
-      
-      // Extract authorized domains
-      const authorizedDomains = authConfig.authorizedDomains || [];
-      console.log(`📋 Found ${authorizedDomains.length} current authorized domains via Firebase CLI`);
-      
-      return authorizedDomains;
-    }
-    
-    return [];
+
+    fs.unlinkSync('temp-get-domains.js');
+
+    const domains = JSON.parse(result.trim());
+    console.log(`📋 Found ${domains.length} current authorized domains via Admin SDK`);
+    return domains;
   } catch (error) {
-    console.warn('⚠️  Could not fetch current authorized domains');
+    console.warn('⚠️  Could not fetch current authorized domains via Admin SDK');
     console.warn('Error:', error.message);
-    
+
+    // Clean up temporary file if it exists
+    if (fs.existsSync('temp-get-domains.js')) {
+      fs.unlinkSync('temp-get-domains.js');
+    }
+
     // Return common default domains that are usually present
     const defaultDomains = [
       'localhost',
@@ -82,65 +86,78 @@ function getCurrentAuthorizedDomains(projectId) {
 }
 
 /**
- * Add domain to Firebase Auth authorized domains using gcloud
+ * Add domain to Firebase Auth authorized domains using Firebase Admin SDK
  */
 function addAuthorizedDomain(domain, projectId) {
   try {
     console.log(`🔧 Adding domain to authorized domains: ${domain}`);
-    
-    // Use gcloud to add the domain with timeout
-    execSync(`gcloud firebase auth domains create ${domain} --project=${projectId}`, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 15000 // 15 second timeout
-    });
-    
-    console.log(`✅ Successfully added ${domain} to authorized domains`);
-    return true;
-  } catch (error) {
-    // Check if the error is because domain already exists
-    if (error.message.includes('already exists') || error.message.includes('ALREADY_EXISTS')) {
-      console.log(`ℹ️  Domain ${domain} already exists in authorized domains`);
-      return true;
+
+    // Create a Node.js script to add the domain using Firebase Admin SDK
+    const addDomainScript = `
+const admin = require('firebase-admin');
+const serviceAccount = require('./service-account.json');
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  projectId: '${projectId}'
+});
+
+async function addDomain() {
+  try {
+    // Get current auth config
+    const authConfig = await admin.auth().getConfig();
+    const currentDomains = authConfig.authorizedDomains || [];
+
+    // Check if domain already exists
+    if (currentDomains.includes('${domain}')) {
+      console.log('DOMAIN_EXISTS');
+      return;
     }
-    
-    console.error(`❌ Failed to add domain ${domain}:`, error.message);
-    return false;
+
+    // Add the new domain
+    const updatedDomains = [...currentDomains, '${domain}'];
+
+    await admin.auth().updateConfig({
+      authorizedDomains: updatedDomains
+    });
+
+    console.log('DOMAIN_ADDED');
+  } catch (error) {
+    console.error('Error:', error.message);
+    process.exit(1);
   }
 }
 
-/**
- * Update Firebase Auth authorized domains using Firebase CLI
- */
-function updateAuthorizedDomains(domains, projectId) {
-  try {
-    console.log('🔧 Updating Firebase Auth configuration...');
-    
-    // Create a minimal auth config with the domains
-    const authConfig = {
-      authorizedDomains: domains
-    };
-    
-    // Write config to temporary file
-    fs.writeFileSync('temp-auth-config.json', JSON.stringify(authConfig, null, 2));
-    
-    // Import the updated config
-    execSync(`firebase auth:import temp-auth-config.json --project ${projectId}`, {
-      stdio: ['pipe', 'pipe', 'pipe']
+addDomain();
+    `;
+
+    fs.writeFileSync('temp-add-domain.js', addDomainScript);
+
+    const result = execSync(`node temp-add-domain.js`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 15000
     });
-    
-    // Clean up temporary file
-    fs.unlinkSync('temp-auth-config.json');
-    
-    console.log('✅ Successfully updated authorized domains');
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to update authorized domains:', error.message);
-    
-    // Clean up temporary file if it exists
-    if (fs.existsSync('temp-auth-config.json')) {
-      fs.unlinkSync('temp-auth-config.json');
+
+    fs.unlinkSync('temp-add-domain.js');
+
+    if (result.includes('DOMAIN_EXISTS')) {
+      console.log(`ℹ️  Domain ${domain} already exists in authorized domains`);
+      return true;
+    } else if (result.includes('DOMAIN_ADDED')) {
+      console.log(`✅ Successfully added ${domain} to authorized domains`);
+      return true;
     }
-    
+
+    return false;
+  } catch (error) {
+    console.error(`❌ Failed to add domain ${domain}:`, error.message);
+
+    // Clean up temporary file if it exists
+    if (fs.existsSync('temp-add-domain.js')) {
+      fs.unlinkSync('temp-add-domain.js');
+    }
+
     return false;
   }
 }
@@ -157,60 +174,37 @@ function getDomainFromSiteId(siteId) {
  */
 function main() {
   console.log('🚀 Starting Firebase Auth Authorized Domains Configuration');
-  
+
   const siteId = process.argv[2];
   const projectId = process.argv[3];
-  
+
   console.log(`📝 Args received: siteId=${siteId}, projectId=${projectId}`);
-  
+
   if (!siteId || !projectId) {
     console.error('❌ Usage: node configure-auth-domains.js <site-id> <project-id>');
-    console.error('   Example: node configure-auth-domains.js dev-test-devour4 devour-4a8f0');
+    console.error('   Example: node configure-auth-domains.js dev-test-feature123 your-firebase-project-id');
     process.exit(1);
   }
-  
+
   console.log('🚀 Firebase Auth Authorized Domains Configuration');
   console.log(`   Site ID: ${siteId}`);
   console.log(`   Project ID: ${projectId}`);
   console.log('');
-  
+
   const domain = getDomainFromSiteId(siteId);
   console.log(`🌐 Target domain: ${domain}`);
-  
+
   try {
-    // Method 1: Try using gcloud CLI to add the domain directly
-    console.log('\n📝 Method 1: Adding domain using gcloud CLI...');
-    const gcloudSuccess = addAuthorizedDomain(domain, projectId);
-    
-    if (gcloudSuccess) {
-      console.log('✅ Domain successfully configured using gcloud CLI');
-      return;
-    }
-    
-    // Method 2: Try using Firebase CLI to update the entire list
-    console.log('\n📝 Method 2: Updating domains using Firebase CLI...');
-    const currentDomains = getCurrentAuthorizedDomains(projectId);
-    
-    // Check if domain is already in the list
-    if (currentDomains.includes(domain)) {
-      console.log(`ℹ️  Domain ${domain} is already in authorized domains list`);
-      return;
-    }
-    
-    // Add the new domain to the list
-    const updatedDomains = [...new Set([...currentDomains, domain])]; // Remove duplicates
-    
-    console.log(`📋 Updated domains list (${updatedDomains.length} domains):`);
-    updatedDomains.forEach(d => console.log(`   - ${d}`));
-    
-    const updateSuccess = updateAuthorizedDomains(updatedDomains, projectId);
-    
-    if (updateSuccess) {
-      console.log('✅ Domain successfully configured using Firebase CLI');
+    // Use Firebase Admin SDK to add the domain
+    console.log('\n📝 Adding domain using Firebase Admin SDK...');
+    const success = addAuthorizedDomain(domain, projectId);
+
+    if (success) {
+      console.log('✅ Domain successfully configured');
     } else {
-      throw new Error('Both methods failed');
+      throw new Error('Firebase Admin SDK method failed');
     }
-    
+
   } catch (error) {
     console.error('\n❌ Failed to configure authorized domains');
     console.error('Error:', error.message);
@@ -219,7 +213,7 @@ function main() {
     console.error(`   2. In the "Authorized domains" section, click "Add domain"`);
     console.error(`   3. Add: ${domain}`);
     console.error('   4. Save the configuration');
-    
+
     // Don't exit with error code, as this is not critical for deployment success
     console.log('\n⚠️  Deployment will continue, but authentication may not work until domain is manually added');
   }
