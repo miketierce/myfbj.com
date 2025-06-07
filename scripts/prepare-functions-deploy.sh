@@ -7,8 +7,13 @@ set -e # Exit on error
 
 echo "🔧 Preparing Firebase Functions for deployment..."
 
+# Debug environment variables
+echo "🐛 Debug: Environment variables:"
+echo "  FIREBASE_FUNCTION_NAME=${FIREBASE_FUNCTION_NAME:-<not set>}"
+echo "  FUNCTION_NAME=${FUNCTION_NAME:-<not set>}"
+
 # Get the expected function name from environment or use default
-EXPECTED_FUNCTION_NAME="${FUNCTION_NAME:-server}"
+EXPECTED_FUNCTION_NAME="${FIREBASE_FUNCTION_NAME:-${FUNCTION_NAME:-server}}"
 echo "🎯 Expected function name: $EXPECTED_FUNCTION_NAME"
 
 # Check source functions directory
@@ -80,23 +85,33 @@ if [ -n "$ENTRY_POINT" ]; then
   if [ "$EXPECTED_FUNCTION_NAME" != "server" ]; then
     echo "🔄 Creating branch-specific function export: $EXPECTED_FUNCTION_NAME"
 
-    # Backup original entry point with .mjs extension to maintain module compatibility
-    if [[ "$ENTRY_POINT" == *.mjs ]]; then
+    # Check if we already have a backup, if not create one
+    if [[ "$ENTRY_POINT" == *.mjs ]] && [ ! -f "server-original.mjs" ]; then
       cp "$ENTRY_POINT" "server-original.mjs"
-    else
+    elif [[ "$ENTRY_POINT" == *.js ]] && [ ! -f "server-original.js" ]; then
       cp "$ENTRY_POINT" "server-original.js"
+    fi
+
+    # If backup exists but the current file is already modified, restore original first
+    if [[ "$ENTRY_POINT" == *.mjs ]] && [ -f "server-original.mjs" ]; then
+      # Check if current file looks like our generated wrapper
+      if grep -q "Auto-generated entry point for branch-specific function deployment" "$ENTRY_POINT"; then
+        echo "📋 Detected existing wrapper, keeping original backup"
+      fi
     fi
 
     # Create new entry point that exports both default and branch-specific function
     if [[ "$ENTRY_POINT" == *.mjs ]]; then
-      # For .mjs files (ES modules)
+      # For .mjs files (ES modules) - create a simple wrapper
       cat > "$ENTRY_POINT" << EOF
 // Auto-generated entry point for branch-specific function deployment
 import { server } from './server-original.mjs';
 
-// Export the function with both the default name and branch-specific name
+// Export the default server function
 export { server };
-export { server as '${EXPECTED_FUNCTION_NAME}' };
+
+// Export the branch-specific function name
+export { server as ${EXPECTED_FUNCTION_NAME} };
 EOF
     else
       # For .js files (CommonJS)
