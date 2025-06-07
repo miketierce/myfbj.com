@@ -392,30 +392,27 @@ jobs:
         shell: bash
         run: |
           firestore_target_arg="firestore"
-          storage_target_arg="storage"  # Always use default storage target
+          storage_target_arg="storage"
           hosting_target_arg="hosting"
           functions_target_arg="functions:server" # Default to production/mainline targets
 
           # Check if we are in a development environment (any non-master/main branch)
-          if [[ "${{ env.ENVIRONMENT }}" == "development" ]]; then
+          if [[ "$ENVIRONMENT" == "development" ]]; then
             # The 'configure_firebase' step runs only for 'development' environment.
             # Its outputs will contain the branch-specific names.
             dev_hosting_site_id="${{ steps.configure_firebase.outputs.hosting_site_id }}"
             dev_function_name="${{ steps.configure_firebase.outputs.function_name }}"
 
-            # If dev_hosting_site_id is set (i.e., it's a feature branch, not 'dev' or 'development' branch itself)
+            # For development branches, we'll use targeted deployments only for hosting and functions
+            # Firestore and Storage will use default targets to avoid configuration complexity
             if [[ -n "$dev_hosting_site_id" ]]; then
-              firestore_target_arg="firestore:$dev_hosting_site_id"
-              # storage_target_arg remains "storage" (default) for all branches
               hosting_target_arg="hosting:$dev_hosting_site_id"
             fi
-            # else, for 'dev'/'development' branches, hosting_site_id is empty, so we use default targets
 
             # If dev_function_name is set (it should be, e.g., 'server-branch' or 'server' for 'dev' branch)
             if [[ -n "$dev_function_name" ]]; then
               functions_target_arg="functions:$dev_function_name"
             fi
-            # else, it defaults to 'functions:server' (already set)
           fi
 
           echo "firestore_target_arg=$firestore_target_arg" >> "$GITHUB_OUTPUT"

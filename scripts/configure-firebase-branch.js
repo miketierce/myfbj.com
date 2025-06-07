@@ -74,65 +74,27 @@ console.log(`  Firebase Project ID: ${firebaseProjectId}`);
 console.log(`  New function name: ${functionName}`);
 console.log(`  New hosting site ID: ${siteId}`);
 
-// Ensure hosting object and rewrites array exist
+// Configure hosting for branch deployments
+// Ensure hosting object exists
 if (!firebaseConfig.hosting) {
   firebaseConfig.hosting = { public: '.output/public' }; // Default public if not set
 }
 firebaseConfig.hosting.site = siteId; // Set the target site for hosting deployment
 
-// Configure storage targets for branch deployments
-// Firebase requires explicit storage target configurations for named targets
+// For development branches, we keep storage and firestore simple (default targets only)
+// This avoids complex target configuration issues
+
+// Ensure basic storage configuration exists
 if (!firebaseConfig.storage) {
-  firebaseConfig.storage = [];
-} else if (typeof firebaseConfig.storage === 'object' && !Array.isArray(firebaseConfig.storage)) {
-  // Convert single storage config to array format for multiple targets
-  const defaultStorage = { ...firebaseConfig.storage };
-  delete defaultStorage.target; // Remove any existing target
-  firebaseConfig.storage = [defaultStorage];
+  firebaseConfig.storage = { rules: 'storage.rules' };
 }
 
-// Ensure storage is an array
-if (!Array.isArray(firebaseConfig.storage)) {
-  firebaseConfig.storage = [{ rules: 'storage.rules' }];
-}
-
-// Add branch-specific storage target if not already present
-const branchStorageExists = firebaseConfig.storage.some(config => config.target === siteId);
-if (!branchStorageExists) {
-  firebaseConfig.storage.push({
-    rules: 'storage.rules',
-    target: siteId
-  });
-  console.log(`  Added storage target: ${siteId}`);
-}
-
-// Configure firestore targets for branch deployments
+// Ensure basic firestore configuration exists  
 if (!firebaseConfig.firestore) {
-  firebaseConfig.firestore = [];
-} else if (typeof firebaseConfig.firestore === 'object' && !Array.isArray(firebaseConfig.firestore)) {
-  // Convert single firestore config to array format for multiple targets
-  const defaultFirestore = { ...firebaseConfig.firestore };
-  delete defaultFirestore.target; // Remove any existing target
-  firebaseConfig.firestore = [defaultFirestore];
-}
-
-// Ensure firestore is an array
-if (!Array.isArray(firebaseConfig.firestore)) {
-  firebaseConfig.firestore = [{
+  firebaseConfig.firestore = {
     rules: 'firestore.rules',
     indexes: 'firestore.indexes.json'
-  }];
-}
-
-// Add branch-specific firestore target if not already present
-const branchFirestoreExists = firebaseConfig.firestore.some(config => config.target === siteId);
-if (!branchFirestoreExists) {
-  firebaseConfig.firestore.push({
-    rules: 'firestore.rules',
-    indexes: 'firestore.indexes.json',
-    target: siteId
-  });
-  console.log(`  Added firestore target: ${siteId}`);
+  };
 }
 
 if (!firebaseConfig.hosting.rewrites || !Array.isArray(firebaseConfig.hosting.rewrites)) {

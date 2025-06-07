@@ -56,30 +56,17 @@
     ],
     "site": "dev-test-devour4"
   },
-  "firestore": [
-    {
-      "rules": "firestore.rules",
-      "indexes": "firestore.indexes.json"
-    },
-    {
-      "rules": "firestore.rules",
-      "indexes": "firestore.indexes.json",
-      "target": "dev-test-devour4"
-    }
-  ],
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "functions": {
     "source": ".output/server",
     "runtime": "nodejs22"
   },
-  "storage": [
-    {
-      "rules": "storage.rules"
-    },
-    {
-      "rules": "storage.rules",
-      "target": "dev-test-devour4"
-    }
-  ],
+  "storage": {
+    "rules": "storage.rules"
+  },
   "emulators": {
     "functions": {
       "port": 5001
