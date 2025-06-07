@@ -143,9 +143,10 @@ if (!firebaseConfig.hosting.rewrites || !Array.isArray(firebaseConfig.hosting.re
 // Update or add the main rewrite rule
 let serverRewriteFound = false;
 firebaseConfig.hosting.rewrites = firebaseConfig.hosting.rewrites.map(rewrite => {
-  // Assuming the primary function rewrite targets a function originally named 'server'
-  if (rewrite.function === 'server' || (rewrite.source === '**' && rewrite.function)) {
+  // Look for any catch-all rewrite rule that points to a function
+  if (rewrite.source === '**' && rewrite.function) {
     serverRewriteFound = true;
+    console.log(`  Updating rewrite rule from '${rewrite.function}' to '${functionName}'`);
     return { ...rewrite, function: functionName };
   }
   return rewrite;
