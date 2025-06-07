@@ -945,3 +945,4 @@ Monitoring data is stored in the `function-metrics` directory for later analysis
 
 [MIT License](LICENSE)
 # Workflow test Fri 06 Jun 2025 09:14:50 PM CDT
+# Testing dynamic project ID resolution from dev secrets
