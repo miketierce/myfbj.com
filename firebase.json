@@ -22,7 +22,7 @@
       },
       {
         "source": "**",
-        "function": "server"
+        "function": "server_dev_integration_test"
       }
     ],
     "headers": [
@@ -53,7 +53,8 @@
           }
         ]
       }
-    ]
+    ],
+    "site": "dev-integration-test-devour"
   },
   "firestore": {
     "rules": "firestore.rules",

@@ -8,7 +8,7 @@ set -e # Exit on error
 echo "🔧 Preparing Firebase Functions for deployment..."
 
 # Get the expected function name from environment or use default
-EXPECTED_FUNCTION_NAME="${FIREBASE_FUNCTION_NAME:-server}"
+EXPECTED_FUNCTION_NAME="${FUNCTION_NAME:-server}"
 echo "🎯 Expected function name: $EXPECTED_FUNCTION_NAME"
 
 # Check source functions directory

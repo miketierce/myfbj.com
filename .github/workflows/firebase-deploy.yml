@@ -237,7 +237,7 @@ jobs:
           NODE_GYP_FORCE_PYTHON: python3
         run: |
           echo "Installing dependencies and updating pnpm-lock.yaml..."
-          pnpm install
+          pnpm install --no-strict-peer-dependencies
 
           # Verify package.json integrity after installation
           echo "Verifying package.json integrity after installation..."
@@ -345,7 +345,7 @@ jobs:
 
           # Install dependencies for Firebase Functions
           echo "Installing dependencies in functions directory..."
-          pnpm install
+          pnpm install --no-strict-peer-dependencies
 
           # Ensure types are available
           pnpm add -D @types/node@22
@@ -372,9 +372,8 @@ jobs:
       - name: Install Firebase CLI
         run: |
           npm install -g firebase-tools@14.6.0
-          # Install Firebase Admin SDK for Auth domain management
-          npm install firebase-admin@12.0.0
         # Using Firebase Tools v14.6.0 which is compatible with Node.js 22
+        # firebase-admin is already in package.json dependencies
 
       - name: Create Firebase Hosting Site (if needed)
         if: github.event_name == 'push' && env.ENVIRONMENT == 'development' && steps.configure_firebase.outputs.hosting_site_id != ''
@@ -461,7 +460,7 @@ jobs:
             # Install dependencies in the output directory using the Nuxt-generated package.json
             echo "Installing dependencies in .output/server directory..."
             cd .output/server
-            pnpm install
+            pnpm install --no-strict-peer-dependencies
 
             # Verify firebase-functions package was installed
             if [ -d "node_modules/firebase-functions" ]; then
