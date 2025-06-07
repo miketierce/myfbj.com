@@ -1,4 +1,14 @@
-{
+#!/usr/bin/env node
+
+// Restore firebase.json to baseline configuration
+// This should be run after branch deployments to clean up any branch-specific configurations
+
+import fs from 'fs';
+import path from 'path';
+
+const firebaseJsonPath = path.resolve(process.cwd(), 'firebase.json');
+
+const baselineConfig = {
   "hosting": {
     "public": ".output/public",
     "ignore": [
@@ -22,7 +32,7 @@
       },
       {
         "source": "**",
-        "function": "server-dev-test"
+        "function": "server"
       }
     ],
     "headers": [
@@ -53,33 +63,19 @@
           }
         ]
       }
-    ],
-    "site": "dev-test-devour4"
+    ]
   },
-  "firestore": [
-    {
-      "rules": "firestore.rules",
-      "indexes": "firestore.indexes.json"
-    },
-    {
-      "rules": "firestore.rules",
-      "indexes": "firestore.indexes.json",
-      "target": "dev-test-devour4"
-    }
-  ],
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "functions": {
     "source": ".output/server",
     "runtime": "nodejs22"
   },
-  "storage": [
-    {
-      "rules": "storage.rules"
-    },
-    {
-      "rules": "storage.rules",
-      "target": "dev-test-devour4"
-    }
-  ],
+  "storage": {
+    "rules": "storage.rules"
+  },
   "emulators": {
     "functions": {
       "port": 5001
@@ -97,4 +93,12 @@
       "enabled": true
     }
   }
+};
+
+try {
+  fs.writeFileSync(firebaseJsonPath, JSON.stringify(baselineConfig, null, 2));
+  console.log('✅ Restored firebase.json to baseline configuration');
+} catch (e) {
+  console.error('❌ Error restoring firebase.json:', e);
+  process.exit(1);
 }

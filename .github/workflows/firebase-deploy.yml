@@ -392,7 +392,7 @@ jobs:
         shell: bash
         run: |
           firestore_target_arg="firestore"
-          storage_target_arg="storage"
+          storage_target_arg="storage"  # Always use default storage target
           hosting_target_arg="hosting"
           functions_target_arg="functions:server" # Default to production/mainline targets
 
@@ -406,10 +406,10 @@ jobs:
             # If dev_hosting_site_id is set (i.e., it's a feature branch, not 'dev' or 'development' branch itself)
             if [[ -n "$dev_hosting_site_id" ]]; then
               firestore_target_arg="firestore:$dev_hosting_site_id"
-              storage_target_arg="storage:$dev_hosting_site_id"
+              # storage_target_arg remains "storage" (default) for all branches
               hosting_target_arg="hosting:$dev_hosting_site_id"
             fi
-            # else, for 'dev'/'development' branches, hosting_site_id is empty, so we use default targets 'firestore', 'storage', 'hosting'
+            # else, for 'dev'/'development' branches, hosting_site_id is empty, so we use default targets
 
             # If dev_function_name is set (it should be, e.g., 'server-branch' or 'server' for 'dev' branch)
             if [[ -n "$dev_function_name" ]]; then
@@ -491,4 +491,36 @@ jobs:
           bash ./scripts/prepare-functions-deploy.sh
 
           echo "Deploying functions..."
-          firebase deploy --only ${{ steps.deploy_targets.outputs.functions_target_arg }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive
+          echo "🎯 Function deployment details:"
+          echo "  Target: ${{ steps.deploy_targets.outputs.functions_target_arg }}"
+          echo "  Expected function name: ${{ steps.configure_firebase.outputs.function_name || 'server' }}"
+          echo "  Project: ${{ steps.determine_env.outputs.project_id }}"
+
+          # Deploy functions with detailed output
+          if firebase deploy --only ${{ steps.deploy_targets.outputs.functions_target_arg }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive; then
+            echo "✅ Functions deployed successfully"
+
+            # List deployed functions for verification
+            echo "📋 Verifying deployed functions:"
+            firebase functions:list --project ${{ steps.determine_env.outputs.project_id }} || echo "Could not list functions"
+          else
+            echo "❌ Function deployment failed"
+            exit 1
+          fi
+
+      - name: Post-Deployment Diagnosis
+        if: github.event_name == 'push' && env.ENVIRONMENT == 'development'
+        run: |
+          export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/service-account.json"
+          echo "🔍 Running post-deployment diagnosis..."
+
+          # Run diagnosis with branch-specific parameters
+          hosting_site_id="${{ steps.configure_firebase.outputs.hosting_site_id }}"
+          function_name="${{ steps.configure_firebase.outputs.function_name }}"
+          project_id="${{ steps.determine_env.outputs.project_id }}"
+
+          bash ./scripts/diagnose-deployment.sh "$hosting_site_id" "$function_name" "$project_id"
+
+          echo ""
+          echo "🌐 Branch deployment URL: https://$hosting_site_id.web.app"
+          echo "⚙️  Expected function: $function_name"
