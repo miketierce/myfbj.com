@@ -3,5 +3,8 @@
 </script>
 
 <template>
-  <div>Home page content</div>
+  <div class="h2">MyFBJ.com Home page</div>
+  <div class="h3">Share your journey or find your next one!</div>
+  <div class="h4">Stay tuned for updates!</div>
+
 </template>
