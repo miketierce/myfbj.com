@@ -473,11 +473,10 @@ jobs:
           echo "  Timeout: $firebase_timeout s"
           echo "  Concurrency: $firebase_concurrency"
 
-          # Set hosting site for branch deployments
+          # Log hosting site for branch deployments (no need to set, it's configured in firebase.json)
           if [[ "${{ env.ENVIRONMENT }}" == "development" && -n "${{ steps.configure_firebase.outputs.hosting_site_id }}" ]]; then
-            echo "Setting Firebase hosting site for branch deployment..."
+            echo "Deploying to branch-specific hosting site..."
             echo "Site ID: ${{ steps.configure_firebase.outputs.hosting_site_id }}"
-            firebase hosting:sites:set ${{ steps.configure_firebase.outputs.hosting_site_id }} --project ${{ steps.determine_env.outputs.project_id }} --non-interactive
           fi
 
           # Deploy each component separately to isolate any issues
